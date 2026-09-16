@@ -82,6 +82,9 @@ public class AppStore {
     void saveApiMatches(List<Match>favorites,List<Match>today){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
     boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>21_600_000L;}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
+    String proxyUrl(){return prefs.getString("proxy_url","").trim();}
+    String proxyToken(){return prefs.getString("proxy_token","").trim();}
+    void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
 
     List<Match>upcoming(){
         long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);
