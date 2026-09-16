@@ -77,21 +77,18 @@ public class AppStore {
     List<Match>manualMatches(){List<Match>r=new ArrayList<>();try{JSONArray a=new JSONArray(prefs.getString("manual_matches","[]"));for(int i=0;i<a.length();i++)r.add(Match.fromJson(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     void addManual(Match m){List<Match>c=manualMatches();c.add(m);JSONArray a=new JSONArray();try{for(Match x:c)a.put(x.toJson());}catch(Exception ignored){}prefs.edit().putString("manual_matches",a.toString()).apply();}
 
+    private List<Match>readMatches(String key){List<Match>r=new ArrayList<>();try{JSONArray a=new JSONArray(prefs.getString(key,"[]"));for(int i=0;i<a.length();i++)r.add(Match.fromJson(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
+    private String matchesJson(List<Match>matches){JSONArray a=new JSONArray();try{for(Match m:matches)a.put(m.toJson());}catch(Exception ignored){}return a.toString();}
+    void saveApiMatches(List<Match>favorites,List<Match>today){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
+    boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>21_600_000L;}
+    long lastApiSync(){return prefs.getLong("api_last_sync",0);}
+
     List<Match>upcoming(){
-        long now=System.currentTimeMillis(),day=86_400_000L;List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);int i=0;
-        Set<String>clubs=selectedTeams(),clubCups=selectedClubCompetitions();for(String team:CLUBS)if(clubs.contains(team)){String cup=clubCompetition(team,clubCups);if(cup!=null)r.add(new Match(10_000+i,team,rival(team),shortName(cup)+" · dato de prueba",now+(i/2+1)*day+(i%2)*10_800_000L,false));i++;}
-        Set<String>countries=selectedNationalTeams(),nationalCups=selectedNationalCompetitions();for(String team:NATIONAL_TEAMS)if(countries.contains(team)){String cup=nationalCompetition(team,nationalCups);if(cup!=null)r.add(new Match(20_000+i,team,nationalRival(team),shortName(cup)+" · dato de prueba",now+(i/2+2)*day,false));i++;}
+        long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
     List<Match>todayByCompetitions(){
-        List<Match>r=new ArrayList<>();long now=System.currentTimeMillis();int i=0;
-        Set<String>all=new LinkedHashSet<>(selectedClubCompetitions());all.addAll(selectedNationalCompetitions());
-        for(String competition:all){
-            String[]teams=sampleTeamsFor(competition);long kickoff=now+(i+1)*3_600_000L;
-            r.add(new Match(30_000+i,teams[0],teams[1],shortName(competition)+" · dato de prueba",kickoff,false));i++;
-            if(i>=5)break;
-        }
-        return r;
+        return readMatches("api_today_matches");
     }
     private String[]sampleTeamsFor(String c){
         if(c.contains("Uruguay"))return new String[]{"Defensor Sporting","Danubio"};
