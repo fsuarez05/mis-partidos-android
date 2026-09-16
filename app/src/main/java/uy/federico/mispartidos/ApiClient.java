@@ -73,16 +73,13 @@ class ApiClient {
     }
 
     private static void loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
-        String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
-        String teamId=store.apiTeamId(cacheKey);
-        if(teamId==null){
-            Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
-            String country=national?apiCountryName(selectedName):apiCountryName(AppStore.countryForClub(selectedName));
-            if(country!=null&&!country.isEmpty())search.put("country",country);
-            JSONArray teams=apiData(request("teams",search));
-            JSONObject selected=selectTeam(teams,selectedName,country,national);
-            if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}
-        }
+        String teamId=null;
+        Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
+        String country=national?apiCountryName(selectedName):apiCountryName(AppStore.countryForClub(selectedName));
+        if(country!=null&&!country.isEmpty())search.put("country",country);
+        JSONArray teams=apiData(request("teams",search));
+        JSONObject selected=selectTeam(teams,selectedName,country,national);
+        if(selected!=null)teamId=selected.optString("id",null);
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
         JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","20")));
         for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
