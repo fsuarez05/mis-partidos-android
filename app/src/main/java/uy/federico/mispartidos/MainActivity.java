@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
         Button teams = button("⚙️ Configuración"); teams.setOnClickListener(v -> showSettings());
         Button add = button("＋ Partido"); add.setOnClickListener(v -> addManualMatch());
         actions.addView(teams, weight()); actions.addView(add, weight()); root.addView(actions);
-        String connection=ApiClient.configured()?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
+        String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
         TextView info = text(summaryText()+"\n⚽ Datos API-Football · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
         ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(20)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
@@ -106,7 +106,7 @@ public class MainActivity extends Activity {
         Set<String> clubs,clubCups,nations,nationCups;
         ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
     }
-    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel(),"Actualizar partidos ahora"};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else if(pos==1)chooseNotice();else syncNow(true);}).setNegativeButton("Cerrar",null).show();}
+    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel(),"Conexión API", "Actualizar partidos ahora"};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else if(pos==1)chooseNotice();else if(pos==2)showApiConnection();else syncNow(true);}).setNegativeButton("Cerrar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
 
     private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
@@ -204,7 +204,8 @@ public class MainActivity extends Activity {
     }
 
     private void requestNotificationPermission() { if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7); }
-    private void syncNow(boolean force){if(!ApiClient.configured()){syncStatus="Sin conexión configurada";buildScreen();return;}syncStatus="Actualizando…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok)AlarmScheduler.scheduleAll(this);buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_SHORT).show();});}
+    private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
+    private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}syncStatus="Actualizando…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok)AlarmScheduler.scheduleAll(this);buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
