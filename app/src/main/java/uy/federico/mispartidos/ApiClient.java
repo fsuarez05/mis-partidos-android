@@ -38,14 +38,25 @@ class ApiClient {
         new Thread(() -> {
             try {
                 Map<Long,Match> favorites = new LinkedHashMap<>();
-                for (String team : store.selectedTeams()) loadTeamFixtures(team,false,favorites);
-                for (String team : store.selectedNationalTeams()) loadTeamFixtures(team,true,favorites);
+                List<String> failures = new ArrayList<>();
+                for (String team : store.selectedTeams()) {
+                    try { loadTeamFixtures(team,false,favorites); }
+                    catch (Exception e) { failures.add(team); }
+                }
+                for (String team : store.selectedNationalTeams()) {
+                    try { loadTeamFixtures(team,true,favorites); }
+                    catch (Exception e) { failures.add(team); }
+                }
 
                 String date = new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
-                JSONObject todayJson = request("fixturesByDate",params("date",date,"timezone","America/Montevideo"));
-                List<Match> today = parseFixtures(todayJson,store.selectedClubCompetitions(),store.selectedNationalCompetitions(),true);
+                List<Match> today = new ArrayList<>();
+                try {
+                    JSONObject todayJson = request("fixturesByDate",params("date",date,"timezone","America/Montevideo"));
+                    today = parseFixtures(todayJson,store.selectedClubCompetitions(),store.selectedNationalCompetitions(),true);
+                } catch (Exception e) { failures.add("partidos de hoy"); }
                 store.saveApiMatches(new ArrayList<>(favorites.values()),today);
-                new Handler(Looper.getMainLooper()).post(() -> callback.done(true,"Actualizado ahora"));
+                String message = failures.isEmpty() ? "Actualizado ahora" : "Actualizado; no se pudo consultar: "+String.join(", ",failures);
+                new Handler(Looper.getMainLooper()).post(() -> callback.done(true,message));
             } catch (Exception e) {
                 new Handler(Looper.getMainLooper()).post(() -> callback.done(false,"No se pudo actualizar: "+e.getMessage()));
             }
@@ -53,15 +64,17 @@ class ApiClient {
     }
 
     private static void loadTeamFixtures(String selectedName, boolean national, Map<Long,Match> out) throws Exception {
-        String search = selectedName.replace(" (Uruguay)","");
+        String search = apiSearchName(selectedName);
         JSONObject teamsJson = request("teams",params("search",search));
         JSONArray teams = apiResponse(teamsJson); Integer teamId = null;
+        Integer compatibleFallback = null;
         for (int i=0;i<teams.length();i++) {
             JSONObject team=teams.getJSONObject(i).getJSONObject("team");
             String name=team.optString("name"),country=team.optString("country");boolean isNational=team.optBoolean("national");
+            if(compatibleFallback==null && isNational==national)compatibleFallback=team.getInt("id");
             if (matchesTeam(selectedName,name,country,national,isNational)) { teamId=team.getInt("id"); break; }
         }
-        if(teamId==null && teams.length()>0)teamId=teams.getJSONObject(0).getJSONObject("team").getInt("id");
+        if(teamId==null)teamId=compatibleFallback;
         if(teamId==null)return;
         JSONObject fixtures=request("teamFixtures",params("team",String.valueOf(teamId),"next","10","timezone","America/Montevideo"));
         for(Match m:parseFavoriteFixtures(fixtures,selectedName))out.put(m.id,m);
@@ -79,9 +92,33 @@ class ApiClient {
     }
 
     private static boolean matchesTeam(String selected,String apiName,String country,boolean national,boolean apiNational){
-        if(national)return apiNational&&(apiName.equalsIgnoreCase(selected)||country.equalsIgnoreCase(selected));
+        if(national){
+            String wanted=normalize(apiSearchName(selected));
+            return apiNational&&(normalize(apiName).equals(wanted)||normalize(country).equals(wanted));
+        }
         String base=selected.replace(" (Uruguay)","");if(!apiName.equalsIgnoreCase(base))return false;
         String expected=AppStore.countryForClub(selected);return expected==null||country.equalsIgnoreCase(expected);
+    }
+
+    private static String apiSearchName(String selected){
+        String value=selected.replace(" (Uruguay)","");
+        Map<String,String> translations=new LinkedHashMap<>();
+        translations.put("Países Bajos","Netherlands");
+        translations.put("Corea del Sur","South Korea");
+        translations.put("Estados Unidos","USA");
+        translations.put("Alemania","Germany");
+        translations.put("España","Spain");
+        translations.put("Inglaterra","England");
+        translations.put("Francia","France");
+        translations.put("Italia","Italy");
+        translations.put("Marruecos","Morocco");
+        translations.put("Japón","Japan");
+        translations.put("Bélgica","Belgium");
+        translations.put("Croacia","Croatia");
+        translations.put("Brasil","Brazil");
+        if(translations.containsKey(value))value=translations.get(value);
+        return java.text.Normalizer.normalize(value,java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}","").replaceAll("[^A-Za-z0-9 ]+"," ").replaceAll("\\s+"," ").trim();
     }
 
     private static List<Match> parseFixtures(JSONObject wrapper,Set<String>clubCups,Set<String>nationalCups,boolean filter) throws Exception {
