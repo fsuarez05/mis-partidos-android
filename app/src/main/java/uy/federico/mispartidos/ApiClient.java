@@ -24,14 +24,16 @@ import java.util.Set;
 
 class ApiClient {
     interface Callback { void done(boolean ok, String message); }
+    private static String proxyUrl="",proxyToken="";
 
-    static boolean configured() {
-        return !BuildConfig.PROXY_URL.isEmpty() && !BuildConfig.PROXY_TOKEN.isEmpty();
+    static boolean configured(Context context) {
+        AppStore store=new AppStore(context);return !store.proxyUrl().isEmpty()&&!store.proxyToken().isEmpty();
     }
 
     static void sync(Context context, boolean force, Callback callback) {
         AppStore store = new AppStore(context);
-        if (!configured()) { callback.done(false,"Falta configurar la conexión"); return; }
+        if (!configured(context)) { callback.done(false,"Falta configurar la conexión"); return; }
+        proxyUrl=store.proxyUrl();proxyToken=store.proxyToken();
         if (!force && !store.needsApiSync()) { callback.done(true,"Datos actualizados"); return; }
         new Thread(() -> {
             try {
@@ -113,7 +115,7 @@ class ApiClient {
     }
 
     private static JSONObject request(String action,Map<String,String> values)throws Exception{
-        StringBuilder u=new StringBuilder(BuildConfig.PROXY_URL);u.append(BuildConfig.PROXY_URL.contains("?")?'&':'?');u.append("action=").append(enc(action));u.append("&token=").append(enc(BuildConfig.PROXY_TOKEN));
+        StringBuilder u=new StringBuilder(proxyUrl);u.append(proxyUrl.contains("?")?'&':'?');u.append("action=").append(enc(action));u.append("&token=").append(enc(proxyToken));
         for(Map.Entry<String,String>e:values.entrySet())u.append('&').append(enc(e.getKey())).append('=').append(enc(e.getValue()));
         HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(true);
         int status=c.getResponseCode();InputStream stream=status>=200&&status<400?c.getInputStream():c.getErrorStream();BufferedReader r=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8));StringBuilder b=new StringBuilder();String line;while((line=r.readLine())!=null)b.append(line);r.close();c.disconnect();
