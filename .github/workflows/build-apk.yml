@@ -22,6 +22,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Recuperar firma de desarrollo
+        id: debug-key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: mispartidos-debug-keystore-v1
+      - name: Crear firma inicial
+        if: steps.debug-key.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Mis Partidos,C=UY"
       - name: Compilar APK
         run: gradle :app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
