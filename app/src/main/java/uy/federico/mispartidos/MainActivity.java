@@ -35,11 +35,12 @@ import java.util.Set;
 public class MainActivity extends Activity {
     private AppStore store;
     private LinearLayout list;
+    private String syncStatus = "";
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE d MMM · HH:mm", new Locale("es", "UY"));
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
-        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);
+        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this); syncNow(false);
     }
 
     private void buildScreen() {
@@ -50,7 +51,8 @@ public class MainActivity extends Activity {
         Button teams = button("⚙️ Configuración"); teams.setOnClickListener(v -> showSettings());
         Button add = button("＋ Partido"); add.setOnClickListener(v -> addManualMatch());
         actions.addView(teams, weight()); actions.addView(add, weight()); root.addView(actions);
-        TextView info = text(summaryText()+"\nVersión de prueba · Los partidos marcados como dato de prueba no provienen aún de una API.", 13, Color.DKGRAY, false);
+        String connection=ApiClient.configured()?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
+        TextView info = text(summaryText()+"\n⚽ Datos API-Football · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
         ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(20)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root); refresh();
@@ -104,7 +106,7 @@ public class MainActivity extends Activity {
         Set<String> clubs,clubCups,nations,nationCups;
         ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
     }
-    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel()};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else chooseNotice();}).setNegativeButton("Cerrar",null).show();}
+    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel(),"Actualizar partidos ahora"};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else if(pos==1)chooseNotice();else syncNow(true);}).setNegativeButton("Cerrar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
 
     private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
@@ -122,7 +124,7 @@ public class MainActivity extends Activity {
         nations.setOnClickListener(v->{holder[0].dismiss();showTeamExplorer("Elegir selecciones",AppStore.NATIONAL_TEAMS,draft.nations,true,values->{draft.nations=values;draft.nationCups.addAll(AppStore.suggestedNationalCompetitions(values));showConfigurationHub(draft);},()->showConfigurationHub(draft));});
         nationCups.setOnClickListener(v->{holder[0].dismiss();showCompetitionMenu("Competiciones de selecciones",AppStore.NATIONAL_COMPETITIONS,AppStore.suggestedNationalCompetitions(draft.nations),draft.nationCups,true,values->{draft.nationCups=values;showConfigurationHub(draft);},()->showConfigurationHub(draft));});dialog.show();
     }
-    private void saveConfiguration(ConfigDraft d){store.saveTeams(d.clubs);store.saveClubCompetitions(d.clubCups);store.saveNationalTeams(d.nations);store.saveNationalCompetitions(d.nationCups);buildScreen();AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Configuración guardada",Toast.LENGTH_SHORT).show();}
+    private void saveConfiguration(ConfigDraft d){store.saveTeams(d.clubs);store.saveClubCompetitions(d.clubCups);store.saveNationalTeams(d.nations);store.saveNationalCompetitions(d.nationCups);buildScreen();Toast.makeText(this,"Configuración guardada",Toast.LENGTH_SHORT).show();syncNow(true);}
     private String selectionSummary(Set<String> values){if(values.isEmpty())return"Ninguno seleccionado";StringBuilder s=new StringBuilder();int i=0;for(String v:values){if(i++>0)s.append("  ·  ");s.append(v);if(i==4&&values.size()>4){s.append("  +").append(values.size()-4);break;}}return s.toString();}
     private String selectionSummaryShort(Set<String> values){Set<String>shorts=new LinkedHashSet<>();for(String v:values)shorts.add(AppStore.shortName(v));return selectionSummary(shorts);}
 
@@ -202,6 +204,8 @@ public class MainActivity extends Activity {
     }
 
     private void requestNotificationPermission() { if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7); }
+    private void syncNow(boolean force){if(!ApiClient.configured()){syncStatus="Sin conexión configurada";buildScreen();return;}syncStatus="Actualizando…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok)AlarmScheduler.scheduleAll(this);buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_SHORT).show();});}
+    private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
     private LinearLayout.LayoutParams weight(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(2),0,dp(2),0);return p;}
