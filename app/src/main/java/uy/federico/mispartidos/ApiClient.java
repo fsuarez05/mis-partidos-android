@@ -14,6 +14,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -84,7 +85,9 @@ class ApiClient {
             if(teamId!=null)store.saveApiTeamId((national?"N:":"C:")+selectedName,teamId);
         }
         if(teamId==null)return;
-        JSONObject fixtures=request("teamFixtures",params("team",String.valueOf(teamId),"next","10","timezone","America/Montevideo"));
+        SimpleDateFormat apiDate=new SimpleDateFormat("yyyy-MM-dd",Locale.US);
+        Calendar end=Calendar.getInstance();String from=apiDate.format(end.getTime());end.add(Calendar.DAY_OF_YEAR,120);
+        JSONObject fixtures=request("teamFixtures",params("team",String.valueOf(teamId),"from",from,"to",apiDate.format(end.getTime()),"timezone","America/Montevideo"));
         for(Match m:parseFavoriteFixtures(fixtures,selectedName,teamId))out.put(m.id,m);
     }
 
@@ -96,7 +99,7 @@ class ApiClient {
             String opponent=homeTeam.getInt("id")==selectedId?awayTeam.getString("name"):homeTeam.getString("name");long kickoff=fixture.getLong("timestamp")*1000L;
             if(kickoff>System.currentTimeMillis())result.add(new Match(fixture.getLong("id"),selectedName,opponent,league.optString("name","Partido"),kickoff,false));
         }
-        result.sort((x,y)->Long.compare(x.kickoff,y.kickoff));return result;
+        result.sort((x,y)->Long.compare(x.kickoff,y.kickoff));return result.size()>10?new ArrayList<>(result.subList(0,10)):result;
     }
 
     private static boolean matchesTeam(String selected,String apiName,String country,boolean national,boolean apiNational){
