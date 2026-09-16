@@ -61,6 +61,15 @@ public class AppStore {
     private static boolean any(Set<String>v,String...w){for(String s:w)if(v.contains(s))return true;return false;}
     private static void addContaining(Set<String>o,String[]source,String...terms){for(String s:source)for(String t:terms)if(s.contains(t)){o.add(s);break;}}
     static String countryForClub(String t){if(any(new HashSet<>(java.util.Arrays.asList("Peñarol","Nacional","Defensor Sporting","Liverpool (Uruguay)","Danubio","Cerro Largo")),t))return"Uruguay";if(any(new HashSet<>(java.util.Arrays.asList("River Plate","Boca Juniors","Racing Club","Independiente","San Lorenzo")),t))return"Argentina";if(any(new HashSet<>(java.util.Arrays.asList("Flamengo","Palmeiras","Corinthians","São Paulo","Grêmio","Internacional")),t))return"Brasil";if(any(new HashSet<>(java.util.Arrays.asList("Barcelona","Real Madrid","Atlético de Madrid","Sevilla","Valencia","Villarreal")),t))return"España";if(any(new HashSet<>(java.util.Arrays.asList("Manchester City","Manchester United","Chelsea","Liverpool","Arsenal","Tottenham")),t))return"Inglaterra";if(any(new HashSet<>(java.util.Arrays.asList("PSG","Olympique de Marsella","Monaco")),t))return"Francia";if(t.contains("Bayern")||t.contains("Dortmund"))return"Alemania";if(any(new HashSet<>(java.util.Arrays.asList("Juventus","Inter","Milan","Napoli")),t))return"Italia";if(t.equals("Benfica")||t.equals("Porto"))return"Portugal";if(t.equals("Ajax"))return"Países Bajos";return null;}
+    static String continentForClub(String t){String c=countryForClub(t);return c==null?null:(c.equals("Uruguay")||c.equals("Argentina")||c.equals("Brasil")?"América del Sur":"Europa");}
+    static String continentForNational(String t){
+        if(any(new HashSet<>(java.util.Arrays.asList("Uruguay","Argentina","Brasil","Chile","Colombia","Paraguay","Perú","Ecuador","Bolivia","Venezuela")),t))return"América del Sur";
+        if(any(new HashSet<>(java.util.Arrays.asList("España","Francia","Inglaterra","Alemania","Italia","Portugal","Países Bajos","Bélgica","Croacia")),t))return"Europa";
+        if(any(new HashSet<>(java.util.Arrays.asList("México","Estados Unidos","Canadá")),t))return"Norteamérica";
+        if(any(new HashSet<>(java.util.Arrays.asList("Marruecos","Senegal","Nigeria")),t))return"África";
+        if(any(new HashSet<>(java.util.Arrays.asList("Japón","Corea del Sur")),t))return"Asia";
+        if(t.equals("Australia"))return"Oceanía";return null;
+    }
     static String shortName(String full){int p=full.lastIndexOf('›');return p<0?full:full.substring(p+1).trim();}
 
     int noticeMinutes(){return prefs.getInt("notice_minutes",60);} void saveNoticeMinutes(int m){prefs.edit().putInt("notice_minutes",m).apply();}
