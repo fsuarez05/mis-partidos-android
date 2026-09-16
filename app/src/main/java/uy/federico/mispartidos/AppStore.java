@@ -3,6 +3,7 @@ package uy.federico.mispartidos;
 import android.content.Context;
 import android.content.SharedPreferences;
 import org.json.JSONArray;
+import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -79,19 +80,23 @@ public class AppStore {
 
     private List<Match>readMatches(String key){List<Match>r=new ArrayList<>();try{JSONArray a=new JSONArray(prefs.getString(key,"[]"));for(int i=0;i<a.length();i++)r.add(Match.fromJson(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     private String matchesJson(List<Match>matches){JSONArray a=new JSONArray();try{for(Match m:matches)a.put(m.toJson());}catch(Exception ignored){}return a.toString();}
+    List<Match> apiFavoriteMatches(){return readMatches("api_favorite_matches");}
+    List<Match> apiTodayMatches(){return readMatches("api_today_matches");}
     void saveApiMatches(List<Match>favorites,List<Match>today){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
-    boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>21_600_000L;}
+    boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>43_200_000L;}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
     String proxyUrl(){return prefs.getString("proxy_url","").trim();}
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
+    Integer apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));return ids.has(name)?ids.getInt(name):null;}catch(Exception ignored){return null;}}
+    void saveApiTeamId(String name,int id){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));ids.put(name,id);prefs.edit().putString("api_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
 
     List<Match>upcoming(){
         long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
     List<Match>todayByCompetitions(){
-        return readMatches("api_today_matches");
+        return apiTodayMatches();
     }
     private String[]sampleTeamsFor(String c){
         if(c.contains("Uruguay"))return new String[]{"Defensor Sporting","Danubio"};
