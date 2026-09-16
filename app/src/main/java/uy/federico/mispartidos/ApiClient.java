@@ -27,10 +27,16 @@ import java.util.TimeZone;
 class ApiClient {
     interface Callback { void done(boolean ok, String message); }
     interface TeamSearchCallback { void done(List<TeamOption> teams, String error); }
+    interface LeagueCallback { void done(List<LeagueOption> leagues, String error); }
     static class TeamOption {
         final String id,name,country;
         TeamOption(String id,String name,String country){this.id=id;this.name=name;this.country=country;}
         String label(){return country==null||country.isEmpty()?name:name+" · "+country;}
+    }
+    static class LeagueOption {
+        final String id,name,season;
+        LeagueOption(String id,String name,String season){this.id=id;this.name=name;this.season=season;}
+        String label(){return season==null||season.isEmpty()?name:name+" · "+season;}
     }
     private static String proxyUrl="",proxyToken="";
 
@@ -95,7 +101,7 @@ class ApiClient {
             if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}
         }
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
-        JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","20")));
+        JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","10")));
         for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
     }
 
@@ -109,13 +115,31 @@ class ApiClient {
                 JSONArray data=apiData(request("teams",params("search",query.trim(),"limit","50")));
                 for(int i=0;i<data.length();i++){
                     JSONObject item=data.optJSONObject(i);if(item==null)continue;
-                    String id=item.optString("id"),name=item.optString("name"),country=item.optString("country");
+                    String id=item.optString("id"),name=item.optString("name"),country=item.isNull("country")?"":item.optString("country");
                     if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));
                 }
             }catch(Exception e){error=e.getMessage();}
             String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));
         }).start();
     }
+
+    static void countryLeagues(Context context,String country,LeagueCallback callback){
+        prepare(context);new Thread(()->{List<LeagueOption>result=new ArrayList<>();String error=null;try{
+            JSONArray data=apiData(request("countryLeagues",params("country",apiCountryName(country))));
+            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),season=x.optString("season");if(!id.isEmpty()&&!name.isEmpty())result.add(new LeagueOption(id,name,season));}
+            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));
+        }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
+    }
+
+    static void leagueTeams(Context context,String leagueId,TeamSearchCallback callback){
+        prepare(context);new Thread(()->{List<TeamOption>result=new ArrayList<>();String error=null;try{
+            JSONArray data=apiData(request("leagueTeams",params("league",leagueId,"limit","100")));
+            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),country=x.isNull("country")?"":x.optString("country");if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));}
+            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));
+        }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
+    }
+
+    private static void prepare(Context context){AppStore s=new AppStore(context);proxyUrl=s.proxyUrl();proxyToken=s.proxyToken();}
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
         JSONObject fallback=null;String wanted=normalize(apiSearchName(selectedName));
@@ -228,6 +252,14 @@ class ApiClient {
         if(canonical.equals("spain"))return"Spain";if(canonical.equals("england"))return"England";if(canonical.equals("france"))return"France";
         if(canonical.equals("germany"))return"Germany";if(canonical.equals("italy"))return"Italy";if(canonical.equals("netherlands"))return"Netherlands";
         if(canonical.equals("brazil"))return"Brazil";if(canonical.equals("south korea"))return"South Korea";if(canonical.equals("usa"))return"USA";
+        if(canonical.equals("peru"))return"Peru";if(canonical.equals("mexico"))return"Mexico";if(canonical.equals("belgica"))return"Belgium";
+        if(canonical.equals("escocia"))return"Scotland";if(canonical.equals("turquia"))return"Turkey";if(canonical.equals("grecia"))return"Greece";
+        if(canonical.equals("suiza"))return"Switzerland";if(canonical.equals("dinamarca"))return"Denmark";if(canonical.equals("noruega"))return"Norway";
+        if(canonical.equals("suecia"))return"Sweden";if(canonical.equals("polonia"))return"Poland";if(canonical.equals("republica checa"))return"Czech Republic";
+        if(canonical.equals("rumania"))return"Romania";if(canonical.equals("sudafrica"))return"South Africa";if(canonical.equals("egipto"))return"Egypt";
+        if(canonical.equals("argelia"))return"Algeria";if(canonical.equals("tunez"))return"Tunisia";if(canonical.equals("china"))return"China";
+        if(canonical.equals("india"))return"India";if(canonical.equals("arabia saudita"))return"Saudi Arabia";if(canonical.equals("catar"))return"Qatar";
+        if(canonical.equals("emiratos arabes unidos"))return"United Arab Emirates";if(canonical.equals("iran"))return"Iran";if(canonical.equals("nueva zelanda"))return"New Zealand";
         return value;
     }
 

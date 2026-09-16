@@ -131,7 +131,7 @@ public class MainActivity extends Activity {
     private String selectionSummaryShort(Set<String> values){Set<String>shorts=new LinkedHashSet<>();for(String v:values)shorts.add(AppStore.shortName(v));return selectionSummary(shorts);}
 
     private void showTeamExplorer(String title,String[]all,Set<String>initial,boolean national,SelectionDone done,Runnable back){
-        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar cualquier selección (API)","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar cualquier club (API)","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa"};
+        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar cualquier selección (API)","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar cualquier club (API)","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"};
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setItems(menu,(d,pos)->{if(pos==0)showApiTeamSearch(title,chosen,national,done,()->showTeamExplorer(title,all,chosen,national,done,back));else if(pos==1)showTeamSubset(title,all,chosen,chosen,national,done,back,()->showTeamExplorer(title,all,chosen,national,done,back));else{String region=menu[pos].substring(menu[pos].indexOf(' ')+1);if(national)showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back,()->showTeamExplorer(title,all,chosen,true,done,back));else chooseClubCountry(title,all,region,chosen,done,back);}}).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
     }
 
@@ -144,7 +144,36 @@ public class MainActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(box).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
     }
     private Set<String>teamsInRegion(String[]all,String region,boolean national){Set<String>r=new LinkedHashSet<>();for(String t:all){String c=national?AppStore.continentForNational(t):AppStore.continentForClub(t);if(region.equals(c))r.add(t);}return r;}
-    private void chooseClubCountry(String title,String[]all,String region,Set<String>chosen,SelectionDone done,Runnable back){Set<String>countries=new LinkedHashSet<>();for(String t:all)if(region.equals(AppStore.continentForClub(t)))countries.add(AppStore.countryForClub(t));String[]items=countries.toArray(new String[0]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(region+" · Seleccionar país").setItems(items,(d,pos)->{Set<String>subset=new LinkedHashSet<>();for(String t:all)if(items[pos].equals(AppStore.countryForClub(t)))subset.add(t);showTeamSubset(title,all,subset,chosen,false,done,back,()->chooseClubCountry(title,all,region,chosen,done,back));}).setNegativeButton("Volver",(d,w)->showTeamExplorer(title,all,chosen,false,done,back)).create();dialog.setOnCancelListener(d->showTeamExplorer(title,all,chosen,false,done,back));dialog.show();}
+    private void chooseClubCountry(String title,String[]all,String region,Set<String>chosen,SelectionDone done,Runnable back){String[]items=clubCountries(region);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(region+" · Seleccionar país").setItems(items,(d,pos)->loadCountryLeagues(title,all,region,items[pos],chosen,done,back)).setNegativeButton("Volver",(d,w)->showTeamExplorer(title,all,chosen,false,done,back)).create();dialog.setOnCancelListener(d->showTeamExplorer(title,all,chosen,false,done,back));dialog.show();}
+
+    private String[]clubCountries(String region){
+        if(region.equals("América del Sur"))return new String[]{"Uruguay","Argentina","Brasil","Chile","Colombia","Paraguay","Perú","Ecuador","Bolivia","Venezuela"};
+        if(region.equals("Europa"))return new String[]{"España","Inglaterra","Italia","Alemania","Francia","Portugal","Países Bajos","Bélgica","Escocia","Turquía","Grecia","Austria","Suiza","Croacia","Dinamarca","Noruega","Suecia","Polonia","República Checa","Rumania"};
+        if(region.equals("Norteamérica"))return new String[]{"México","Estados Unidos","Canadá","Costa Rica","Honduras","Panamá"};
+        if(region.equals("África"))return new String[]{"Marruecos","Egipto","Sudáfrica","Nigeria","Senegal","Argelia","Túnez","Ghana"};
+        if(region.equals("Asia"))return new String[]{"Japón","Corea del Sur","China","India","Arabia Saudita","Catar","Emiratos Árabes Unidos","Irán"};
+        return new String[]{"Australia","Nueva Zelanda"};
+    }
+
+    private void loadCountryLeagues(String title,String[]all,String region,String country,Set<String>chosen,SelectionDone done,Runnable back){
+        AlertDialog loading=new AlertDialog.Builder(this).setTitle(country).setMessage("Cargando divisionales…").setCancelable(false).create();loading.show();
+        ApiClient.countryLeagues(this,country,(leagues,error)->{loading.dismiss();if(error!=null){Toast.makeText(this,error,Toast.LENGTH_LONG).show();chooseClubCountry(title,all,region,chosen,done,back);return;}showLeagueChoices(title,all,region,country,leagues,chosen,done,back);});
+    }
+
+    private void showLeagueChoices(String title,String[]all,String region,String country,List<ApiClient.LeagueOption>leagues,Set<String>chosen,SelectionDone done,Runnable back){
+        String[]labels=new String[leagues.size()];for(int i=0;i<leagues.size();i++)labels[i]=leagues.get(i).label();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(country+" · Elegir divisional").setItems(labels,(d,pos)->loadLeagueTeams(title,all,region,country,leagues,leagues.get(pos),chosen,done,back)).setNegativeButton("Volver",(d,w)->chooseClubCountry(title,all,region,chosen,done,back)).create();dialog.setOnCancelListener(d->chooseClubCountry(title,all,region,chosen,done,back));dialog.show();
+    }
+
+    private void loadLeagueTeams(String title,String[]all,String region,String country,List<ApiClient.LeagueOption>leagues,ApiClient.LeagueOption league,Set<String>chosen,SelectionDone done,Runnable back){
+        AlertDialog loading=new AlertDialog.Builder(this).setTitle(league.name).setMessage("Cargando equipos…").setCancelable(false).create();loading.show();
+        ApiClient.leagueTeams(this,league.id,(teams,error)->{loading.dismiss();if(error!=null){Toast.makeText(this,error,Toast.LENGTH_LONG).show();showLeagueChoices(title,all,region,country,leagues,chosen,done,back);return;}showApiTeamSubset(title,all,region,country,leagues,league,teams,chosen,done,back);});
+    }
+
+    private void showApiTeamSubset(String title,String[]all,String region,String country,List<ApiClient.LeagueOption>leagues,ApiClient.LeagueOption league,List<ApiClient.TeamOption>teams,Set<String>chosen,SelectionDone done,Runnable back){
+        String[]labels=new String[teams.size()];boolean[]checked=new boolean[teams.size()];for(int i=0;i<teams.size();i++){labels[i]=teams.get(i).name;checked[i]=chosen.contains(teams.get(i).name);}
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(league.name+" · Equipos").setMultiChoiceItems(labels,checked,(d,pos,on)->{ApiClient.TeamOption team=teams.get(pos);if(on){chosen.add(team.name);store.saveApiTeamId("goal:C:"+team.name,team.id);}else chosen.remove(team.name);}).setPositiveButton("Listo",(d,w)->showLeagueChoices(title,all,region,country,leagues,chosen,done,back)).setNegativeButton("Volver",(d,w)->showLeagueChoices(title,all,region,country,leagues,chosen,done,back)).create();dialog.setOnCancelListener(d->showLeagueChoices(title,all,region,country,leagues,chosen,done,back));dialog.show();
+    }
     private void showTeamSubset(String title,String[]all,Set<String>subset,Set<String>chosen,boolean national,SelectionDone done,Runnable back,Runnable returnTo){String[]values=subset.toArray(new String[0]);boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++)checked[i]=chosen.contains(values[i]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setMultiChoiceItems(values,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->returnTo.run()).setNegativeButton("Volver",(d,w)->returnTo.run()).create();dialog.setOnCancelListener(d->returnTo.run());dialog.show();}
 
     private void showSearchPicker(String title,String[] all,Set<String> initial,SelectionDone done,Runnable back){
