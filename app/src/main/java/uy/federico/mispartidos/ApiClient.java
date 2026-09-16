@@ -41,6 +41,13 @@ class ApiClient {
                 Map<Long,Match> favorites = new LinkedHashMap<>();
                 List<String> failures = new ArrayList<>();
                 List<String> failureReasons = new ArrayList<>();
+                String date = new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
+                List<Match> today = new ArrayList<>();
+                try {
+                    JSONObject todayJson = request("fixturesByDate",params("date",date,"timezone","America/Montevideo"));
+                    today = parseFixtures(todayJson,store.selectedClubCompetitions(),store.selectedNationalCompetitions(),true);
+                } catch (Exception e) { failures.add("partidos de hoy"); failureReasons.add(e.getMessage()); }
+
                 boolean quotaBlocked=false;
                 for (String team : store.selectedTeams()) {
                     try { loadTeamFixtures(store,team,false,favorites); }
@@ -51,12 +58,6 @@ class ApiClient {
                     catch (Exception e) { failures.add(team); failureReasons.add(e.getMessage()); if(isQuotaError(e.getMessage())){quotaBlocked=true;break;} }
                 }
 
-                String date = new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
-                List<Match> today = new ArrayList<>();
-                try {
-                    JSONObject todayJson = request("fixturesByDate",params("date",date,"timezone","America/Montevideo"));
-                    today = parseFixtures(todayJson,store.selectedClubCompetitions(),store.selectedNationalCompetitions(),true);
-                } catch (Exception e) { failures.add("partidos de hoy"); failureReasons.add(e.getMessage()); }
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites=toMap(store.apiFavoriteMatches());
                 if(today.isEmpty()&&failures.contains("partidos de hoy"))today=store.apiTodayMatches();
                 store.saveApiMatches(new ArrayList<>(favorites.values()),today);
@@ -87,7 +88,7 @@ class ApiClient {
         if(teamId==null)return;
         SimpleDateFormat apiDate=new SimpleDateFormat("yyyy-MM-dd",Locale.US);
         Calendar end=Calendar.getInstance();String from=apiDate.format(end.getTime());end.add(Calendar.DAY_OF_YEAR,120);
-        JSONObject fixtures=request("teamFixtures",params("team",String.valueOf(teamId),"from",from,"to",apiDate.format(end.getTime()),"timezone","America/Montevideo"));
+        JSONObject fixtures=request("teamFixtures",params("team",String.valueOf(teamId),"season",String.valueOf(seasonFor(selectedName,national)),"from",from,"to",apiDate.format(end.getTime()),"timezone","America/Montevideo"));
         for(Match m:parseFavoriteFixtures(fixtures,selectedName,teamId))out.put(m.id,m);
     }
 
@@ -170,6 +171,7 @@ class ApiClient {
     private static Map<Long,Match>toMap(List<Match>items){Map<Long,Match>r=new LinkedHashMap<>();for(Match m:items)r.put(m.id,m);return r;}
     private static String firstUsefulReason(List<String>reasons){for(String r:reasons)if(r!=null&&!r.trim().isEmpty())return r.length()>160?r.substring(0,160)+"…":r;return"";}
     private static boolean isQuotaError(String s){String n=normalize(s==null?"":s);return n.contains("request limit")||n.contains("requests limit")||n.contains("rate limit")||n.contains("too many requests")||n.contains("daily limit");}
+    private static int seasonFor(String team,boolean national){Calendar c=Calendar.getInstance();int year=c.get(Calendar.YEAR),month=c.get(Calendar.MONTH);if(national)return year;return "Europa".equals(AppStore.continentForClub(team))&&month<Calendar.JULY?year-1:year;}
     private static String normalize(String s){return java.text.Normalizer.normalize(s,java.text.Normalizer.Form.NFD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+"," ").trim();}
 
     private static JSONArray apiResponse(JSONObject wrapper)throws Exception{
