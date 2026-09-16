@@ -44,10 +44,14 @@ class ApiClient {
                 List<String> failures=new ArrayList<>(),reasons=new ArrayList<>();
                 List<Match> today=new ArrayList<>();
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
-                try{
-                    JSONObject response=request("fixturesByDate",params("date",date,"limit","500"));
-                    today=parseToday(response,store.selectedClubCompetitions(),store.selectedNationalCompetitions());
-                }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
+                Set<String> clubCompetitions=store.selectedClubCompetitions();
+                Set<String> nationalCompetitions=store.selectedNationalCompetitions();
+                if(!clubCompetitions.isEmpty()||!nationalCompetitions.isEmpty()){
+                    try{
+                        JSONObject response=request("fixturesByDate",params("date",date,"limit","500"));
+                        today=parseToday(response,clubCompetitions,nationalCompetitions);
+                    }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
+                }
 
                 for(String team:store.selectedTeams()){
                     try{loadTeam(store,team,false,favorites);}
