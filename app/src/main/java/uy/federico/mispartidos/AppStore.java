@@ -50,7 +50,7 @@ public class AppStore {
     Set<String> selectedNationalTeams(){Set<String>s=prefs.getStringSet("national_teams",null);return s==null?new LinkedHashSet<>():new LinkedHashSet<>(s);}
     void saveNationalTeams(Set<String> teams){prefs.edit().putStringSet("national_teams",new HashSet<>(teams)).apply();}
     Set<String> selectedClubCompetitions(){Set<String>s=prefs.getStringSet("club_competitions",null);return s==null?suggestedClubCompetitions(selectedTeams()):new LinkedHashSet<>(s);}
-    void saveClubCompetitions(Set<String> values){prefs.edit().putStringSet("club_competitions",new HashSet<>(values)).apply();}
+    void saveClubCompetitions(Set<String> values){prefs.dit().putStringSet("club_competitions",new HashSet<>(values)).apply();}
     Set<String> selectedNationalCompetitions(){Set<String>s=prefs.getStringSet("national_competitions",null);return s==null?suggestedNationalCompetitions(selectedNationalTeams()):new LinkedHashSet<>(s);}
     void saveNationalCompetitions(Set<String> values){prefs.edit().putStringSet("national_competitions",new HashSet<>(values)).apply();}
 
@@ -59,9 +59,9 @@ public class AppStore {
         if(!teams.isEmpty())addContaining(r,CLUB_COMPETITIONS,"Champions League","Copa Libertadores","Copa Sudamericana","Mundial de Clubes");return r;
     }
     static Set<String> suggestedNationalCompetitions(Set<String> teams){Set<String>r=new LinkedHashSet<>();if(any(teams,"Uruguay","Argentina","Brasil"))addContaining(r,NATIONAL_COMPETITIONS,"CONMEBOL","Mundo");if(any(teams,"España","Francia","Inglaterra"))addContaining(r,NATIONAL_COMPETITIONS,"UEFA","Mundo");return r;}
-    private static boolean any(Set<String>v,String...w){for(String s:w)if(v.contains(s))return true;return false;}
+    private static boolean any(Set<String> v,String... w){for(String s:w)if(v.contains(s))return true;return false;}
     private static void addContaining(Set<String>o,String[]source,String...terms){for(String s:source)for(String t:terms)if(s.contains(t)){o.add(s);break;}}
-    static String countryForClub(String t){if(any(new HashSet<>(java.util.Arrays.asList("Peñarol","Nacional","Defensor Sporting","Liverpool (Uruguay)","Danubio","Cerro Largo")),t))return"Uruguay";if(any(new HashSet<>(java.util.Arrays.asList("River Plate","Boca Juniors","Racing Club","Independiente","San Lorenzo")),t))return"Argentina";if(any(new HashSet<>(java.util.Arrays.asList("Flamengo","Palmeiras","Corinthians","São Paulo","Grêmio","Internacional")),t))return"Brasil";if(any(new HashSet<>(java.util.Arrays.asList("Barcelona","Real Madrid","Atlético de Madrid","Sevilla","Valencia","Villarreal")),t))return"España";if(any(new HashSet<>(java.util.Arrays.asList("Manchester City","Manchester United","Chelsea","Liverpool","Arsenal","Tottenham")),t))return"Inglaterra";if(any(new HashSet<>(java.util.Arrays.asList("PSG","Olympique de Marsella","Monaco")),t))return"Francia";if(t.contains("Bayern")||t.contains("Dortmund"))return"Alemania";if(any(new HashSet<>(java.util.Arrays.asList("Juventus","Inter","Milan","Napoli")),t))return"Italia";if(t.equals("Benfica")||t.equals("Porto"))return"Portugal";if(t.equals("Ajax"))return"Países Bajos";return null;}
+    static String countryForClub(String t){if(any(new HashSet<>(java.util.Arrays.asList("Peñarol","Nacional","Defensor Sporting","Liverpool (Uruguay)","Danubio","Cerro Largo")),t))return"Uruguay";if(any(new HashSet<>(java.util.Arrays.asList("River Plate","Boca Juniors","Racing Club","Independiente","San Lorenzo")),t))return"Argentina";if(any(new HashSet<>(java.util.Arrays.asList("Flamengo","Palmeiras","Corinthians","São Paulo","Grêmio","Internacional")),t))return"Brasil";if(any(new HashSet<>(java.util.Arrays.asList("Barcelona","Real Madrid","Atl�tico de Madrid","Sevilla","Valencia","Villarreal")),t))return"España";if(any(new HashSet<>(java.util.Arrays.asList("Manchester City","Manchester United","Chelsea","Liverpool","Arsenal","Tottenham")),t))return"Inglaterra";if(any(new HashSet<>(java.util.Arrays.asList("PSG","Olympique de Marsella","Monaco")),t))return"Francia";if(t.contains("Bayern")||t.contains("Dortmund"))return"Alemania";if(any(new HashSet<>(java.util.Arrays.asList("Juventus","Inter","Milan","Napoli")),t))return"Italia";if(t.equals("Benfica")||t.equals("Porto"))return"Portugal";if(t.equals("Ajax"))return"Países Bajos";return null;}
     static String continentForClub(String t){String c=countryForClub(t);return c==null?null:(c.equals("Uruguay")||c.equals("Argentina")||c.equals("Brasil")?"América del Sur":"Europa");}
     static String continentForNational(String t){
         if(any(new HashSet<>(java.util.Arrays.asList("Uruguay","Argentina","Brasil","Chile","Colombia","Paraguay","Perú","Ecuador","Bolivia","Venezuela")),t))return"América del Sur";
@@ -88,8 +88,8 @@ public class AppStore {
     String proxyUrl(){return prefs.getString("proxy_url","").trim();}
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
-    Integer apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));return ids.has(name)?ids.getInt(name):null;}catch(Exception ignored){return null;}}
-    void saveApiTeamId(String name,int id){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));ids.put(name,id);prefs.edit().putString("api_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
+    String apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));return ids.has(name)?ids.getString(name):null;}catch(Exception ignored){return null;}}
+    void saveApiTeamId(String name,String id){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.put(name,id);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
 
     List<Match>upcoming(){
         long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);
