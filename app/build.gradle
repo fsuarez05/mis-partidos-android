@@ -8,8 +8,12 @@ android {
         applicationId 'uy.federico.mispartidos'
         minSdk 26
         targetSdk 35
-        versionCode 8
-        versionName '0.7.0'
+        versionCode 9
+        versionName '0.8.0'
+        buildConfigField 'String', 'PROXY_URL', '"' + (System.getenv('MIS_PARTIDOS_PROXY_URL') ?: '') + '"'
+        buildConfigField 'String', 'PROXY_TOKEN', '"' + (System.getenv('MIS_PARTIDOS_PROXY_TOKEN') ?: '') + '"'
     }
+
+    buildFeatures { buildConfig true }
 
 }
