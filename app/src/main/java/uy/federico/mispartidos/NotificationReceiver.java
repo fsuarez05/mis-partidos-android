@@ -21,8 +21,10 @@ public class NotificationReceiver extends BroadcastReceiver {
         Intent open = new Intent(context, MainActivity.class);
         PendingIntent content = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String when = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(kickoff));
+        boolean insideWindow = intent.getBooleanExtra("inside_window", false);
+        long remaining = Math.max(1, (kickoff-System.currentTimeMillis()+59_999)/60_000);
         android.app.Notification n = new android.app.Notification.Builder(context, CHANNEL)
-                .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("⚽ En " + minutes + " minutos juega " + team)
+                .setSmallIcon(R.drawable.ic_notification).setContentTitle(insideWindow ? "⚽ " + team + " juega en " + remaining + " min" : "⚽ En " + minutes + " minutos juega " + team)
                 .setContentText(team + " vs. " + opponent + " · " + when).setAutoCancel(true)
                 .setContentIntent(content).build();
         nm.notify((int) (kickoff % Integer.MAX_VALUE), n);
