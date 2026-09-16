@@ -64,10 +64,28 @@ public class MainActivity extends Activity {
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         List<Match> today=store.todayByCompetitions();
         if(today.isEmpty()){TextView empty=text("Elegí competiciones para ver aquí partidos destacados del día.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}
-        else for(Match m:today)list.addView(matchCard(m));
+        else list.addView(todayTable(today));
     }
 
     private void addSectionTitle(String value){TextView title=text(value,17,Color.rgb(15,23,42),true);title.setPadding(dp(4),dp(14),dp(4),dp(10));list.addView(title);}
+
+    private View todayTable(List<Match> matches){
+        LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));
+        android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
+        table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
+        SimpleDateFormat hourFormat=new SimpleDateFormat("HH:mm",new Locale("es","UY"));
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false));if(i<matches.size()-1)table.addView(tableDivider());}
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));table.setLayoutParams(lp);return table;
+    }
+
+    private View todayRow(String hour,String match,String competition,boolean header){
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(4),dp(header?8:11),dp(4),dp(header?8:11));
+        if(!header){android.graphics.drawable.GradientDrawable line=new android.graphics.drawable.GradientDrawable();line.setColor(Color.WHITE);line.setStroke(0,Color.TRANSPARENT);row.setBackground(line);}
+        TextView h=text(hour,header?11:15,header?Color.GRAY:Color.rgb(180,120,0),header);TextView game=text(match,header?11:14,header?Color.GRAY:Color.rgb(30,41,59),header);TextView cup=text(competition,header?11:12,Color.GRAY,header);
+        h.setGravity(Gravity.CENTER_VERTICAL);game.setPadding(dp(6),0,dp(8),0);cup.setGravity(Gravity.CENTER_VERTICAL);cup.setMaxLines(2);
+        row.addView(h,new LinearLayout.LayoutParams(dp(58),-2));row.addView(game,new LinearLayout.LayoutParams(0,-2,1));row.addView(cup,new LinearLayout.LayoutParams(dp(112),-2));return row;
+    }
+    private View tableDivider(){View line=new View(this);line.setBackgroundColor(Color.rgb(241,245,249));line.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(1)));return line;}
 
     private View matchCard(Match m) {
         LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(16),dp(14),dp(16),dp(14));
