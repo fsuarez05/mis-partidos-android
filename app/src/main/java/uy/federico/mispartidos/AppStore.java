@@ -74,6 +74,28 @@ public class AppStore {
         Set<String>countries=selectedNationalTeams(),nationalCups=selectedNationalCompetitions();for(String team:NATIONAL_TEAMS)if(countries.contains(team)){String cup=nationalCompetition(team,nationalCups);if(cup!=null)r.add(new Match(20_000+i,team,nationalRival(team),shortName(cup)+" · dato de prueba",now+(i/2+2)*day,false));i++;}
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
+    List<Match>todayByCompetitions(){
+        List<Match>r=new ArrayList<>();long now=System.currentTimeMillis();int i=0;
+        Set<String>all=new LinkedHashSet<>(selectedClubCompetitions());all.addAll(selectedNationalCompetitions());
+        for(String competition:all){
+            String[]teams=sampleTeamsFor(competition);long kickoff=now+(i+1)*3_600_000L;
+            r.add(new Match(30_000+i,teams[0],teams[1],shortName(competition)+" · dato de prueba",kickoff,false));i++;
+            if(i>=5)break;
+        }
+        return r;
+    }
+    private String[]sampleTeamsFor(String c){
+        if(c.contains("Uruguay"))return new String[]{"Defensor Sporting","Danubio"};
+        if(c.contains("Argentina"))return new String[]{"Boca Juniors","Racing Club"};
+        if(c.contains("Brasil"))return new String[]{"Flamengo","Palmeiras"};
+        if(c.contains("España"))return new String[]{"Sevilla","Valencia"};
+        if(c.contains("Inglaterra"))return new String[]{"Arsenal","Tottenham"};
+        if(c.contains("Francia"))return new String[]{"PSG","Monaco"};
+        if(c.contains("CONMEBOL"))return new String[]{"River Plate","Flamengo"};
+        if(c.contains("UEFA"))return new String[]{"Bayern Múnich","Inter"};
+        if(c.contains("selecciones")||c.contains("Copa América")||c.contains("Eliminatorias"))return new String[]{"Uruguay","Argentina"};
+        return new String[]{"Barcelona","Manchester City"};
+    }
     private String clubCompetition(String team,Set<String>selected){Set<String>c=suggestedClubCompetitions(new HashSet<>(Collections.singletonList(team)));for(String x:CLUB_COMPETITIONS)if(selected.contains(x)&&c.contains(x))return x;return null;}
     private String nationalCompetition(String team,Set<String>selected){Set<String>c=suggestedNationalCompetitions(new HashSet<>(Collections.singletonList(team)));for(String x:NATIONAL_COMPETITIONS)if(selected.contains(x)&&c.contains(x))return x;return null;}
     private String rival(String t){if(t.equals("Peñarol"))return"Nacional";if(t.equals("Barcelona"))return"Sevilla";if(t.equals("Real Madrid"))return"Valencia";if(t.equals("Atlético de Madrid"))return"Villarreal";if(t.equals("Manchester City"))return"Arsenal";if(t.equals("Manchester United"))return"Tottenham";if(t.equals("Chelsea"))return"Newcastle";if(t.equals("Liverpool"))return"Everton";return"Olympique de Marsella";}
