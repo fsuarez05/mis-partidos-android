@@ -88,8 +88,8 @@ public class AppStore {
     String proxyUrl(){return prefs.getString("proxy_url","").trim();}
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
-    Integer apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));return ids.has(name)?ids.getInt(name):null;}catch(Exception ignored){return null;}}
-    void saveApiTeamId(String name,int id){try{JSONObject ids=new JSONObject(prefs.getString("api_team_ids","{}"));ids.put(name,id);prefs.edit().putString("api_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
+    String apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));return ids.has(name)?ids.getString(name):null;}catch(Exception ignored){return null;}}
+    void saveApiTeamId(String name,String id){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.put(name,id);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
 
     List<Match>upcoming(){
         long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);

@@ -18,6 +18,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -54,7 +55,8 @@ public class MainActivity extends Activity {
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
         TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
-        ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(20)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
+        if(syncStatus.startsWith("Actualizando")){ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));}
+        ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(84)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root); refresh();
     }
 
@@ -77,7 +79,7 @@ public class MainActivity extends Activity {
         table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
         SimpleDateFormat hourFormat=new SimpleDateFormat("HH:mm",new Locale("es","UY"));
         for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false));if(i<matches.size()-1)table.addView(tableDivider());}
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(10));table.setLayoutParams(lp);return table;
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
     private View todayRow(String hour,String match,String competition,boolean header){
@@ -129,8 +131,17 @@ public class MainActivity extends Activity {
     private String selectionSummaryShort(Set<String> values){Set<String>shorts=new LinkedHashSet<>();for(String v:values)shorts.add(AppStore.shortName(v));return selectionSummary(shorts);}
 
     private void showTeamExplorer(String title,String[]all,Set<String>initial,boolean national,SelectionDone done,Runnable back){
-        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa"};
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setItems(menu,(d,pos)->{if(pos==0)showSearchPicker(title,all,chosen,done,()->showTeamExplorer(title,all,chosen,national,done,back));else if(pos==1)showTeamSubset(title,all,chosen,chosen,national,done,back,()->showTeamExplorer(title,all,chosen,national,done,back));else{String region=menu[pos].substring(menu[pos].indexOf(' ')+1);if(national)showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back,()->showTeamExplorer(title,all,chosen,true,done,back));else chooseClubCountry(title,all,region,chosen,done,back);}}).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar cualquier selección (API)","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar cualquier club (API)","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa"};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setItems(menu,(d,pos)->{if(pos==0)showApiTeamSearch(title,chosen,national,done,()->showTeamExplorer(title,all,chosen,national,done,back));else if(pos==1)showTeamSubset(title,all,chosen,chosen,national,done,back,()->showTeamExplorer(title,all,chosen,national,done,back));else{String region=menu[pos].substring(menu[pos].indexOf(' ')+1);if(national)showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back,()->showTeamExplorer(title,all,chosen,true,done,back));else chooseClubCountry(title,all,region,chosen,done,back);}}).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+    }
+
+    private void showApiTeamSearch(String title,Set<String>initial,boolean national,SelectionDone done,Runnable back){
+        Set<String>chosen=new LinkedHashSet<>(initial);LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(18),0,dp(18),0);
+        EditText search=new EditText(this);search.setHint(national?"Ej.: Uruguay":"Ej.: Peñarol");Button run=button("Buscar en GOAL API");TextView state=text("Escribí al menos 2 caracteres.",13,Color.GRAY,false);ListView results=new ListView(this);results.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+        box.addView(search);box.addView(run);box.addView(state);box.addView(results,new LinearLayout.LayoutParams(-1,dp(360)));List<ApiClient.TeamOption>visible=new ArrayList<>();
+        run.setOnClickListener(v->{String q=search.getText().toString().trim();if(q.length()<2){state.setText("Escribí al menos 2 caracteres.");return;}state.setText("Buscando…");run.setEnabled(false);ApiClient.searchTeams(this,q,(teams,error)->{run.setEnabled(true);visible.clear();visible.addAll(teams);List<String>labels=new ArrayList<>();for(ApiClient.TeamOption t:visible)labels.add(t.label());results.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_list_item_multiple_choice,labels));for(int i=0;i<visible.size();i++)results.setItemChecked(i,chosen.contains(visible.get(i).name));state.setText(error!=null?error:(visible.isEmpty()?"No se encontraron resultados.":visible.size()+" resultados"));});});
+        results.setOnItemClickListener((p,v,pos,id)->{ApiClient.TeamOption t=visible.get(pos);if(results.isItemChecked(pos)){chosen.add(t.name);store.saveApiTeamId("goal:"+(national?"N:":"C:")+t.name,t.id);}else chosen.remove(t.name);});
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(box).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
     }
     private Set<String>teamsInRegion(String[]all,String region,boolean national){Set<String>r=new LinkedHashSet<>();for(String t:all){String c=national?AppStore.continentForNational(t):AppStore.continentForClub(t);if(region.equals(c))r.add(t);}return r;}
     private void chooseClubCountry(String title,String[]all,String region,Set<String>chosen,SelectionDone done,Runnable back){Set<String>countries=new LinkedHashSet<>();for(String t:all)if(region.equals(AppStore.continentForClub(t)))countries.add(AppStore.countryForClub(t));String[]items=countries.toArray(new String[0]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(region+" · Seleccionar país").setItems(items,(d,pos)->{Set<String>subset=new LinkedHashSet<>();for(String t:all)if(items[pos].equals(AppStore.countryForClub(t)))subset.add(t);showTeamSubset(title,all,subset,chosen,false,done,back,()->chooseClubCountry(title,all,region,chosen,done,back));}).setNegativeButton("Volver",(d,w)->showTeamExplorer(title,all,chosen,false,done,back)).create();dialog.setOnCancelListener(d->showTeamExplorer(title,all,chosen,false,done,back));dialog.show();}

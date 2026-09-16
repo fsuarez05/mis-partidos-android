@@ -26,6 +26,12 @@ import java.util.TimeZone;
 
 class ApiClient {
     interface Callback { void done(boolean ok, String message); }
+    interface TeamSearchCallback { void done(List<TeamOption> teams, String error); }
+    static class TeamOption {
+        final String id,name,country;
+        TeamOption(String id,String name,String country){this.id=id;this.name=name;this.country=country;}
+        String label(){return country==null||country.isEmpty()?name:name+" · "+country;}
+    }
     private static String proxyUrl="",proxyToken="";
 
     static boolean configured(Context context) {
@@ -48,7 +54,7 @@ class ApiClient {
                 Set<String> nationalCompetitions=store.selectedNationalCompetitions();
                 if(!clubCompetitions.isEmpty()||!nationalCompetitions.isEmpty()){
                     try{
-                        JSONObject response=request("fixturesByDate",params("date",date,"limit","500"));
+                        JSONObject response=request("fixturesByDate",params("date",date,"limit","100"));
                         today=parseToday(response,clubCompetitions,nationalCompetitions);
                     }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
                 }
@@ -68,7 +74,8 @@ class ApiClient {
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
                 store.saveApiMatches(favoriteList,today);
                 String reason=firstUsefulReason(reasons);
-                String message=failures.isEmpty()?"Actualizado ahora":"Actualización parcial: fallaron "+failures.size()+" consultas"+(reason.isEmpty()?"":". "+reason);
+                String failedNames=failures.isEmpty()?"":android.text.TextUtils.join(", ",failures);
+                String message=failures.isEmpty()?"Actualizado ahora":"Actualización parcial: falló "+failedNames+(reason.isEmpty()?"":". "+reason);
                 new Handler(Looper.getMainLooper()).post(()->callback.done(true,message));
             }catch(Exception e){
                 new Handler(Looper.getMainLooper()).post(()->callback.done(false,"No se pudo actualizar: "+e.getMessage()));
@@ -77,16 +84,37 @@ class ApiClient {
     }
 
     private static void loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
-        String teamId=null;
-        Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
-        String country=national?apiCountryName(selectedName):apiCountryName(AppStore.countryForClub(selectedName));
-        if(country!=null&&!country.isEmpty())search.put("country",country);
-        JSONArray teams=apiData(request("teams",search));
-        JSONObject selected=selectTeam(teams,selectedName,country,national);
-        if(selected!=null)teamId=selected.optString("id",null);
+        String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
+        String teamId=store.apiTeamId(cacheKey);
+        if(teamId==null||teamId.isEmpty()){
+            Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
+            String country=national?apiCountryName(selectedName):apiCountryName(AppStore.countryForClub(selectedName));
+            if(country!=null&&!country.isEmpty())search.put("country",country);
+            JSONArray teams=apiData(request("teams",search));
+            JSONObject selected=selectTeam(teams,selectedName,country,national);
+            if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}
+        }
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
         JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","20")));
         for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
+    }
+
+    static void searchTeams(Context context,String query,TeamSearchCallback callback){
+        AppStore store=new AppStore(context);
+        if(!configured(context)){callback.done(new ArrayList<>(),"Falta configurar la conexión");return;}
+        proxyUrl=store.proxyUrl();proxyToken=store.proxyToken();
+        new Thread(()->{
+            List<TeamOption> result=new ArrayList<>();String error=null;
+            try{
+                JSONArray data=apiData(request("teams",params("search",query.trim(),"limit","50")));
+                for(int i=0;i<data.length();i++){
+                    JSONObject item=data.optJSONObject(i);if(item==null)continue;
+                    String id=item.optString("id"),name=item.optString("name"),country=item.optString("country");
+                    if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));
+                }
+            }catch(Exception e){error=e.getMessage();}
+            String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));
+        }).start();
     }
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
