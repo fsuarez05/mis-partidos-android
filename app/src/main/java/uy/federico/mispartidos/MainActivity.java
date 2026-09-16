@@ -82,37 +82,39 @@ public class MainActivity extends Activity {
     private String summaryText() { return "⭐ " + store.selectedTeams().size() + " clubes · " + store.selectedClubCompetitions().size() + " competiciones · " + store.selectedNationalTeams().size() + " selecciones"; }
 
     private interface SelectionDone { void run(Set<String> values); }
-    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel()};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)configureWizard();else chooseNotice();}).setNegativeButton("Cerrar",null).show();}
+    private static class ConfigDraft {
+        Set<String> clubs,clubCups,nations,nationCups;
+        ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
+    }
+    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel()};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else chooseNotice();}).setNegativeButton("Cerrar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
-    private void configureWizard() { chooseClubTeams(store.selectedTeams()); }
 
-    private void chooseClubTeams(Set<String> current) {
-        showSearchPicker("1 de 4 · Buscar clubes",AppStore.CLUBS,current,
-                this::chooseClubCompetitions,null);
+    private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
+    private void showConfigurationHub(ConfigDraft draft){
+        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(18),dp(4),dp(18),0);
+        TextView help=text("Elegí cada categoría por separado. Los cambios se aplican únicamente al guardar.",14,Color.DKGRAY,false);help.setPadding(0,0,0,dp(10));box.addView(help);
+        Button clubs=button("⚽ Clubes seguidos · "+draft.clubs.size());TextView clubNames=text(selectionSummary(draft.clubs),13,Color.GRAY,false);
+        Button clubCups=button("🏆 Competiciones de clubes · "+draft.clubCups.size());TextView clubCupNames=text(selectionSummaryShort(draft.clubCups),13,Color.GRAY,false);
+        Button nations=button("🌐 Selecciones seguidas · "+draft.nations.size());TextView nationNames=text(selectionSummary(draft.nations),13,Color.GRAY,false);
+        Button nationCups=button("🏅 Competiciones de selecciones · "+draft.nationCups.size());TextView nationCupNames=text(selectionSummaryShort(draft.nationCups),13,Color.GRAY,false);
+        box.addView(clubs);box.addView(clubNames);box.addView(clubCups);box.addView(clubCupNames);box.addView(nations);box.addView(nationNames);box.addView(nationCups);box.addView(nationCupNames);
+        final AlertDialog[]holder=new AlertDialog[1];AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Equipos y competiciones").setView(box).setPositiveButton("Guardar cambios",(d,w)->saveConfiguration(draft)).setNegativeButton("Cancelar",null).create();holder[0]=dialog;
+        clubs.setOnClickListener(v->{holder[0].dismiss();showTeamExplorer("Elegir clubes",AppStore.CLUBS,draft.clubs,false,values->{draft.clubs=values;draft.clubCups.addAll(AppStore.suggestedClubCompetitions(values));showConfigurationHub(draft);},()->showConfigurationHub(draft));});
+        clubCups.setOnClickListener(v->{holder[0].dismiss();showCompetitionMenu("Competiciones de clubes",AppStore.CLUB_COMPETITIONS,AppStore.suggestedClubCompetitions(draft.clubs),draft.clubCups,false,values->{draft.clubCups=values;showConfigurationHub(draft);},()->showConfigurationHub(draft));});
+        nations.setOnClickListener(v->{holder[0].dismiss();showTeamExplorer("Elegir selecciones",AppStore.NATIONAL_TEAMS,draft.nations,true,values->{draft.nations=values;draft.nationCups.addAll(AppStore.suggestedNationalCompetitions(values));showConfigurationHub(draft);},()->showConfigurationHub(draft));});
+        nationCups.setOnClickListener(v->{holder[0].dismiss();showCompetitionMenu("Competiciones de selecciones",AppStore.NATIONAL_COMPETITIONS,AppStore.suggestedNationalCompetitions(draft.nations),draft.nationCups,true,values->{draft.nationCups=values;showConfigurationHub(draft);},()->showConfigurationHub(draft));});dialog.show();
     }
+    private void saveConfiguration(ConfigDraft d){store.saveTeams(d.clubs);store.saveClubCompetitions(d.clubCups);store.saveNationalTeams(d.nations);store.saveNationalCompetitions(d.nationCups);buildScreen();AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Configuración guardada",Toast.LENGTH_SHORT).show();}
+    private String selectionSummary(Set<String> values){if(values.isEmpty())return"Ninguno seleccionado";StringBuilder s=new StringBuilder();int i=0;for(String v:values){if(i++>0)s.append("  ·  ");s.append(v);if(i==4&&values.size()>4){s.append("  +").append(values.size()-4);break;}}return s.toString();}
+    private String selectionSummaryShort(Set<String> values){Set<String>shorts=new LinkedHashSet<>();for(String v:values)shorts.add(AppStore.shortName(v));return selectionSummary(shorts);}
 
-    private void chooseClubCompetitions(Set<String> clubs) {
-        chooseClubCompetitions(clubs,store.selectedClubCompetitions());
+    private void showTeamExplorer(String title,String[]all,Set<String>initial,boolean national,SelectionDone done,Runnable back){
+        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa"};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setItems(menu,(d,pos)->{if(pos==0)showSearchPicker(title,all,chosen,done,()->showTeamExplorer(title,all,chosen,national,done,back));else if(pos==1)showTeamSubset(title,all,chosen,chosen,national,done,back);else{String region=menu[pos].substring(menu[pos].indexOf(' ')+1);if(national)showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back);else chooseClubCountry(title,all,region,chosen,done,back);}}).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
     }
-
-    private void chooseClubCompetitions(Set<String> clubs,Set<String> initial) {
-        Set<String>suggestions=AppStore.suggestedClubCompetitions(clubs),current=new LinkedHashSet<>(initial);
-        if(current.isEmpty())current.addAll(suggestions);
-        showCompetitionMenu("2 de 4 · Competiciones de clubes",AppStore.CLUB_COMPETITIONS,suggestions,current,false,
-                values->chooseNationalTeams(clubs,values,store.selectedNationalTeams()),()->chooseClubTeams(clubs));
-    }
-
-    private void chooseNationalTeams(Set<String> clubs,Set<String> clubCups,Set<String> initial) {
-        showSearchPicker("3 de 4 · Buscar selecciones",AppStore.NATIONAL_TEAMS,initial,
-                countries->chooseNationalCompetitions(clubs,clubCups,countries),()->chooseClubCompetitions(clubs,clubCups));
-    }
-
-    private void chooseNationalCompetitions(Set<String> clubs,Set<String> clubCups,Set<String> countries) {
-        Set<String>suggestions=AppStore.suggestedNationalCompetitions(countries),current=new LinkedHashSet<>(store.selectedNationalCompetitions());if(current.isEmpty())current.addAll(suggestions);
-        showCompetitionMenu("4 de 4 · Competiciones de selecciones",AppStore.NATIONAL_COMPETITIONS,suggestions,current,true,values->{
-            store.saveTeams(clubs);store.saveClubCompetitions(clubCups);store.saveNationalTeams(countries);store.saveNationalCompetitions(values);buildScreen();AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Configuración guardada",Toast.LENGTH_SHORT).show();
-        },()->chooseNationalTeams(clubs,clubCups,countries));
-    }
+    private Set<String>teamsInRegion(String[]all,String region,boolean national){Set<String>r=new LinkedHashSet<>();for(String t:all){String c=national?AppStore.continentForNational(t):AppStore.continentForClub(t);if(region.equals(c))r.add(t);}return r;}
+    private void chooseClubCountry(String title,String[]all,String region,Set<String>chosen,SelectionDone done,Runnable back){Set<String>countries=new LinkedHashSet<>();for(String t:all)if(region.equals(AppStore.continentForClub(t)))countries.add(AppStore.countryForClub(t));String[]items=countries.toArray(new String[0]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(region+" · Seleccionar país").setItems(items,(d,pos)->{Set<String>subset=new LinkedHashSet<>();for(String t:all)if(items[pos].equals(AppStore.countryForClub(t)))subset.add(t);showTeamSubset(title,all,subset,chosen,false,done,back);}).setNegativeButton("Volver",(d,w)->showTeamExplorer(title,all,chosen,false,done,back)).create();dialog.setOnCancelListener(d->showTeamExplorer(title,all,chosen,false,done,back));dialog.show();}
+    private void showTeamSubset(String title,String[]all,Set<String>subset,Set<String>chosen,boolean national,SelectionDone done,Runnable back){String[]values=subset.toArray(new String[0]);boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++)checked[i]=chosen.contains(values[i]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setMultiChoiceItems(values,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->showTeamExplorer(title,all,chosen,national,done,back)).setNegativeButton("Volver",(d,w)->showTeamExplorer(title,all,chosen,national,done,back)).create();dialog.setOnCancelListener(d->showTeamExplorer(title,all,chosen,national,done,back));dialog.show();}
 
     private void showSearchPicker(String title,String[] all,Set<String> initial,SelectionDone done,Runnable back){
         Set<String>chosen=new LinkedHashSet<>(initial);LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(18),0,dp(18),0);
@@ -122,7 +124,7 @@ public class MainActivity extends Activity {
         Runnable redraw=()->{String q=search.getText().toString().trim().toLowerCase(Locale.ROOT);visible.clear();for(String s:all)if(q.isEmpty()||s.toLowerCase(Locale.ROOT).contains(q))visible.add(s);results.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_list_item_multiple_choice,visible));for(int i=0;i<visible.size();i++)results.setItemChecked(i,chosen.contains(visible.get(i)));};
         results.setOnItemClickListener((p,v,pos,id)->{String value=visible.get(pos);if(results.isItemChecked(pos))chosen.add(value);else chosen.remove(value);});
         search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){redraw.run();}public void afterTextChanged(Editable e){}});redraw.run();
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(box).setPositiveButton("Siguiente",(d,w)->done.run(chosen)).setNegativeButton(back==null?"Cancelar":"Atrás",(d,w)->{if(back!=null)back.run();}).create();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(box).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton(back==null?"Cancelar":"Volver",(d,w)->{if(back!=null)back.run();}).create();
         if(back!=null)dialog.setOnCancelListener(d->back.run());dialog.show();
     }
 
@@ -134,7 +136,7 @@ public class MainActivity extends Activity {
             else if(pos==2){if(selections)showCompetitionSubset(title,all,filter(all,"América del Sur"),suggested,chosen,true,done,back);else chooseCountry(title,all,"América del Sur",suggested,chosen,done,back);}
             else if(pos==3){if(selections)showCompetitionSubset(title,all,filter(all,"Europa"),suggested,chosen,true,done,back);else chooseCountry(title,all,"Europa",suggested,chosen,done,back);}
             else showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,selections,done,back);
-        }).setPositiveButton(selections&&title.startsWith("4")?"Guardar":"Siguiente",(d,w)->done.run(chosen)).setNegativeButton("Atrás",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+        }).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
     }
 
     private void chooseCountry(String title,String[]all,String continent,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
@@ -160,7 +162,7 @@ public class MainActivity extends Activity {
     private void addManualMatch() {
         if (store.selectedTeams().isEmpty() && store.selectedNationalTeams().isEmpty()) {
             Toast.makeText(this, "Primero elegí al menos un club o selección", Toast.LENGTH_SHORT).show();
-            configureWizard();
+            openConfiguration();
             return;
         }
         LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(20),dp(4),dp(20),0);
