@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
         Button add = button("＋ Partido"); add.setOnClickListener(v -> addManualMatch());
         actions.addView(teams, weight()); actions.addView(add, weight()); root.addView(actions);
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
-        TextView info = text(summaryText()+"\n⚽ Datos API-Football · "+connection, 13, Color.DKGRAY, false);
+        TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
         ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(20)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root); refresh();
