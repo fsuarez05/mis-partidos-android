@@ -57,6 +57,7 @@ class ApiClient {
         new Thread(()->{
             try{
                 Map<Long,Match> favorites=new LinkedHashMap<>();
+                Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
                 List<String> failures=new ArrayList<>(),reasons=new ArrayList<>();
                 List<Match> today=new ArrayList<>();
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
@@ -71,11 +72,11 @@ class ApiClient {
 
                 for(String team:store.selectedTeams()){
                     try{loadTeam(store,team,false,favorites);}
-                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());if(isQuotaError(e.getMessage()))break;}
+                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previousFavorites,team,favorites);if(isQuotaError(e.getMessage()))break;}
                 }
                 if(!containsQuotaError(reasons))for(String team:store.selectedNationalTeams()){
                     try{loadTeam(store,team,true,favorites);}
-                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());if(isQuotaError(e.getMessage()))break;}
+                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previousFavorites,team,favorites);if(isQuotaError(e.getMessage()))break;}
                 }
 
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites=toMap(store.apiFavoriteMatches());
@@ -83,9 +84,7 @@ class ApiClient {
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
                 store.saveApiMatches(favoriteList,today);
-                String reason=firstUsefulReason(reasons);
-                String failedNames=failures.isEmpty()?"":android.text.TextUtils.join(", ",failures);
-                String message=failures.isEmpty()?"Actualizado ahora":"Actualización parcial: falló "+failedNames+(reason.isEmpty()?"":". "+reason);
+                String message=failures.isEmpty()?"Actualizado ahora":"Actualizado con datos pendientes de "+failures.size()+(failures.size()==1?" elemento":" elementos");
                 new Handler(Looper.getMainLooper()).post(()->callback.done(true,message));
             }catch(Exception e){
                 new Handler(Looper.getMainLooper()).post(()->callback.done(false,"No se pudo actualizar: "+e.getMessage()));
@@ -95,19 +94,18 @@ class ApiClient {
 
     private static void loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
         String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
-        String teamId=store.apiTeamId(cacheKey);
-        if(teamId==null||teamId.isEmpty()){
-            Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
-            String savedCountry=store.apiTeamCountry(selectedName);
-            String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));
-            if(country!=null&&!country.isEmpty())search.put("country",country);
-            JSONArray teams=apiData(request("teams",search));
-            JSONObject selected=selectTeam(teams,selectedName,country,national);
-            if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}
-        }
+        String teamId=resolveTeamId(store,selectedName,national,cacheKey,false);
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
-        JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));
+        JSONArray fixtures;
+        try{fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
+        catch(Exception e){if(!String.valueOf(e.getMessage()).contains("404"))throw e;store.clearApiTeamId(cacheKey);teamId=resolveTeamId(store,selectedName,national,cacheKey,true);if(teamId==null||teamId.isEmpty())throw e;fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
         for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
+    }
+
+    private static String resolveTeamId(AppStore store,String selectedName,boolean national,String cacheKey,boolean force)throws Exception{
+        String teamId=force?null:store.apiTeamId(cacheKey);if(teamId!=null&&!teamId.isEmpty())return teamId;
+        Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");String savedCountry=store.apiTeamCountry(selectedName);String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));if(country!=null&&!country.isEmpty())search.put("country",country);
+        JSONArray teams=apiData(request("teams",search));JSONObject selected=selectTeam(teams,selectedName,country,national);if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}return teamId;
     }
 
     static void searchTeams(Context context,String query,TeamSearchCallback callback){
@@ -312,6 +310,7 @@ class ApiClient {
     private static boolean isQuotaError(String s){String n=normalize(s==null?"":s);return n.contains("rate limit")||n.contains("too many requests")||n.contains("daily limit")||n.contains("quota");}
     private static String firstUsefulReason(List<String> reasons){for(String s:reasons)if(s!=null&&!s.trim().isEmpty())return s.length()>170?s.substring(0,170)+"…":s;return"";}
     private static Map<Long,Match> toMap(List<Match> list){Map<Long,Match> result=new LinkedHashMap<>();for(Match m:list)result.put(m.id,m);return result;}
+    private static void addPreviousTeam(Map<Long,Match>previous,String team,Map<Long,Match>target){long now=System.currentTimeMillis();for(Match m:previous.values())if(m.kickoff>now&&normalize(m.team).equals(normalize(team)))target.put(m.id,m);}
     private static String normalize(String s){return Normalizer.normalize(s==null?"":s,Normalizer.Form.NFD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+"," ").trim();}
     private static Map<String,String> params(String... values){Map<String,String> result=new LinkedHashMap<>();for(int i=0;i<values.length;i+=2)result.put(values[i],values[i+1]);return result;}
     private static String enc(String s)throws Exception{return URLEncoder.encode(s,"UTF-8");}
