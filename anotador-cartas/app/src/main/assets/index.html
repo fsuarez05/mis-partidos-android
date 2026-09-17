@@ -210,7 +210,8 @@ function actualizarEncabezadoRonda(){
 function dibujarPredicciones(){
   actualizarEncabezadoRonda();
   const c=document.getElementById("jugadoresRonda"); c.innerHTML="";
-  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{\n    const j=jugadores[i];
+  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{
+    const j=jugadores[i];
     const d=document.createElement("div"); d.className="jugador";
     d.innerHTML=`<div class="jugador-cabecera"><div class="nombre-jugador">${escaparHTML(j.nombre)}</div><div class="total-jugador">Total: ${j.total}</div></div>
     <div class="grupo-contador"><div class="etiqueta">¿Cuántas manos va a ganar?</div><div class="contador">
@@ -249,7 +250,8 @@ function volverPredicciones(){
 }
 function dibujarResultados(){
   actualizarEncabezadoRonda(); const c=document.getElementById("jugadoresRonda"); c.innerHTML="";
-  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{\n    const j=jugadores[i];
+  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{
+    const j=jugadores[i];
     const d=document.createElement("div"); d.className="jugador";
     d.innerHTML=`<div class="jugador-cabecera"><div class="nombre-jugador">${escaparHTML(j.nombre)}</div><div class="total-jugador">Total: ${j.total}</div></div>
     <div class="prediccion-confirmada">Predicción: ${j.prediccion}</div>
