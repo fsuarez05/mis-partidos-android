@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Anotador de Cartas</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Arial,sans-serif; background:#f4f6f8; color:#1f2937; }
+    .contenedor { max-width:750px; margin:auto; padding:16px; padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+    .titulo { text-align:center; margin-bottom:20px; }
+    .tarjeta { background:white; border-radius:16px; padding:18px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+    label { display:block; font-weight:bold; margin-bottom:6px; }
+    input { width:100%; padding:12px; border:1px solid #d1d5db; border-radius:9px; font-size:16px; }
+    button { border:0; border-radius:10px; padding:12px 16px; font-size:16px; cursor:pointer; }
+    button:disabled { opacity:.35; cursor:not-allowed; }
+    .btn-principal { width:100%; background:#2563eb; color:white; font-weight:bold; margin-top:12px; }
+    .btn-verde { width:100%; background:#16a34a; color:white; font-weight:bold; margin-top:12px; }
+    .btn-secundario { background:#e5e7eb; color:#111827; }
+    .btn-secundario-ancho { width:100%; background:#e5e7eb; color:#111827; margin-top:10px; }
+    .btn-peligro { background:#fee2e2; color:#991b1b; }
+    .btn-editar { padding:7px 10px; font-size:13px; background:#e5e7eb; }
+    .fila-jugador-inicio { display:flex; gap:8px; margin-bottom:8px; }
+    .fila-jugador-inicio input { flex:1; }
+    .encabezado-ronda { text-align:center; }
+    .numero-ronda { color:#6b7280; font-size:14px; font-weight:bold; text-transform:uppercase; }
+    .cantidad-cartas { font-size:42px; font-weight:bold; margin:5px 0; }
+    .reparte { margin-top:12px; font-size:18px; font-weight:bold; }
+    .fase { margin-top:12px; display:inline-block; padding:7px 12px; border-radius:20px; background:#dbeafe; color:#1d4ed8; font-weight:bold; font-size:14px; }
+    .jugador { border-top:1px solid #e5e7eb; padding:18px 0; }
+    .jugador:first-child { border-top:0; }
+    .jugador-cabecera { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; }
+    .nombre-jugador { font-size:19px; font-weight:bold; }
+    .total-jugador { font-weight:bold; color:#2563eb; white-space:nowrap; }
+    .grupo-contador { text-align:center; }
+    .etiqueta { font-size:14px; color:#6b7280; margin-bottom:8px; }
+    .contador { display:flex; justify-content:center; align-items:center; gap:12px; }
+    .contador button { width:48px; height:48px; padding:0; font-size:24px; font-weight:bold; background:#e5e7eb; }
+    .valor { min-width:45px; font-size:26px; font-weight:bold; }
+    .prediccion-confirmada { text-align:center; background:#eff6ff; border-radius:10px; padding:10px; margin-bottom:14px; font-weight:bold; }
+    .puntos-ronda { text-align:center; margin-top:14px; padding:9px; border-radius:8px; background:#f3f4f6; font-weight:bold; }
+    .acierto { background:#dcfce7; color:#166534; }
+    .proyectado { text-align:center; font-size:14px; margin-top:7px; color:#6b7280; }
+    .mensaje { margin:12px 0; padding:12px; border-radius:8px; display:none; }
+    .mensaje.error { display:block; background:#fee2e2; color:#991b1b; }
+    .mensaje.ok { display:block; background:#dcfce7; color:#166534; }
+    .resumen { margin-top:14px; text-align:center; font-size:14px; color:#6b7280; }
+    .clasificacion { width:100%; border-collapse:collapse; }
+    .clasificacion th,.clasificacion td { padding:10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+    .clasificacion td:last-child,.clasificacion th:last-child { text-align:right; }
+    .historial-ronda { border-bottom:1px solid #e5e7eb; padding:13px 0; }
+    .historial-cabecera { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+    .historial-titulo { font-weight:bold; }
+    .historial-jugador { font-size:14px; color:#4b5563; margin:5px 0; }
+    .configuracion { display:flex; gap:10px; align-items:end; }
+    .configuracion>div { flex:1; }
+    .recuperar { text-align:center; }
+    .recuperar h2 { margin-top:0; }
+    .oculto { display:none!important; }
+    @media(max-width:500px){ .contenedor{padding:10px}.tarjeta{padding:15px} }
+  </style>
+</head>
+<body>
+<div class="contenedor">
+  <div id="pantallaRecuperar" class="oculto">
+    <div class="titulo"><h1>🃏 Anotador de Cartas</h1></div>
+    <div class="tarjeta recuperar">
+      <h2>Hay una partida guardada</h2>
+      <p id="detallePartidaGuardada"></p>
+      <button class="btn-principal" onclick="continuarPartida()">Continuar partida</button>
+      <button class="btn-secundario-ancho" onclick="descartarPartida()">Empezar nueva partida</button>
+    </div>
+  </div>
+
+  <div id="pantallaInicio" class="oculto">
+    <div class="titulo"><h1>🃏 Anotador de Cartas</h1><div>Configurá la partida</div></div>
+    <div class="tarjeta">
+      <label>Máximo de cartas</label>
+      <input type="number" id="maximoInicial" value="7" min="1" max="50">
+    </div>
+    <div class="tarjeta">
+      <label>Jugadores</label>
+      <div id="listaJugadoresInicio"></div>
+      <button class="btn-secundario" onclick="agregarJugadorInicio()">+ Agregar jugador</button>
+    </div>
+    <div class="tarjeta"><label for="repartidorInicial">¿Quién reparte primero?</label><select id="repartidorInicial" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:9px;font-size:16px;background:white"></select></div>
+    <button class="btn-principal" onclick="iniciarPartida()">Comenzar partida</button>
+    <div id="mensajeInicio" class="mensaje"></div>
+  </div>
+
+  <div id="pantallaPartida" class="oculto">
+    <div class="tarjeta encabezado-ronda">
+      <div class="numero-ronda" id="numeroRonda"></div>
+      <div class="cantidad-cartas" id="cantidadCartas"></div>
+      <div id="textoCartas"></div>
+      <div class="reparte" id="reparte"></div>
+      <div class="fase" id="faseActual"></div>
+    </div>
+    <div class="tarjeta">
+      <div class="configuracion">
+        <div><label>Máximo de cartas</label><input type="number" id="maximoDurantePartida" min="1" max="50"></div>
+        <button class="btn-secundario" onclick="cambiarMaximo()">Cambiar</button>
+      </div>
+    </div>
+    <div class="tarjeta" id="jugadoresRonda"></div>
+    <div id="mensajeRonda" class="mensaje"></div>
+    <button id="btnConfirmarPredicciones" class="btn-principal" onclick="confirmarPredicciones()">Confirmar predicciones</button>
+    <button id="btnVolverPredicciones" class="btn-secundario-ancho oculto" onclick="volverPredicciones()">← Corregir predicciones</button>
+    <button id="btnFinalizarRonda" class="btn-verde oculto" onclick="finalizarRonda()">Finalizar ronda</button>
+
+    <div class="tarjeta" style="margin-top:16px">
+      <h3>🏆 Posiciones</h3>
+      <table class="clasificacion"><thead><tr><th>Jugador</th><th>Puntos</th></tr></thead><tbody id="tablaPosiciones"></tbody></table>
+    </div>
+    <div class="tarjeta"><h3>📋 Historial</h3><div id="historial">Todavía no hay rondas jugadas.</div></div>
+  </div>
+</div>
+
+<script>
+const CLAVE_GUARDADO="anotadorCartasPartidaV3";
+let jugadores=[], historial=[], maximoCartas=7, indiceRonda=0, secuenciaRondas=[], prediccionesConfirmadas=false, indiceRepartidorInicial=0;
+
+function inicializar(){
+  const guardada=obtenerPartidaGuardada();
+  if(guardada){
+    document.getElementById("pantallaRecuperar").classList.remove("oculto");
+    document.getElementById("detallePartidaGuardada").textContent=`${guardada.jugadores.length} jugadores · Ronda ${guardada.indiceRonda+1}`;
+  } else mostrarInicio();
+}
+function mostrarInicio(){
+  document.getElementById("pantallaRecuperar").classList.add("oculto");
+  document.getElementById("pantallaPartida").classList.add("oculto");
+  document.getElementById("pantallaInicio").classList.remove("oculto");
+  document.getElementById("listaJugadoresInicio").innerHTML="";
+  agregarJugadorInicio("Jugador 1"); agregarJugadorInicio("Jugador 2");
+}
+function agregarJugadorInicio(nombre=""){
+  const fila=document.createElement("div"); fila.className="fila-jugador-inicio";
+  fila.innerHTML=`<input type="text" class="nombreJugadorInicio" placeholder="Nombre" value="${escaparHTML(nombre)}"><button type="button" class="btn-secundario" onclick="moverJugadorInicio(this,-1)">↑</button><button type="button" class="btn-secundario" onclick="moverJugadorInicio(this,1)">↓</button><button type="button" class="btn-peligro" onclick="eliminarJugadorInicio(this)">×</button>`;
+  document.getElementById("listaJugadoresInicio").appendChild(fila);
+  fila.querySelector("input").addEventListener("input",actualizarSelectorRepartidor);
+  actualizarSelectorRepartidor();
+}
+function eliminarJugadorInicio(b){ b.parentElement.remove(); actualizarSelectorRepartidor(); }
+function moverJugadorInicio(b,dir){
+  const f=b.parentElement,c=f.parentElement;
+  if(dir<0&&f.previousElementSibling)c.insertBefore(f,f.previousElementSibling);
+  if(dir>0&&f.nextElementSibling)c.insertBefore(f.nextElementSibling,f);
+  actualizarSelectorRepartidor();
+}
+function actualizarSelectorRepartidor(){
+  const s=document.getElementById("repartidorInicial"); if(!s)return;
+  const ant=s.value;
+  const ins=[...document.querySelectorAll(".nombreJugadorInicio")];
+  s.innerHTML=ins.map((i,n)=>`<option value="${n}">${escaparHTML(i.value.trim()||`Jugador ${n+1}`)}</option>`).join("");
+  if([...s.options].some(o=>o.value===ant))s.value=ant;
+}
+function iniciarPartida(){
+  limpiarMensaje("mensajeInicio");
+  const nombres=[...document.querySelectorAll(".nombreJugadorInicio")].map(i=>i.value.trim()).filter(Boolean);
+  if(nombres.length<2){mostrarMensaje("mensajeInicio","Se necesitan al menos 2 jugadores.","error");return;}
+  if(new Set(nombres.map(n=>n.toLowerCase())).size!==nombres.length){mostrarMensaje("mensajeInicio","Los nombres de los jugadores deben ser distintos.","error");return;}
+  maximoCartas=parseInt(document.getElementById("maximoInicial").value);
+  if(!maximoCartas||maximoCartas<1){mostrarMensaje("mensajeInicio","Ingresá un máximo de cartas válido.","error");return;}
+  jugadores=nombres.map((nombre,i)=>({id:"J"+(i+1),nombre,total:0,prediccion:0,ganadas:0}));
+  indiceRepartidorInicial=parseInt(document.getElementById("repartidorInicial").value)||0;
+  historial=[]; indiceRonda=0; prediccionesConfirmadas=false; secuenciaRondas=generarSecuencia(maximoCartas);
+  document.getElementById("maximoDurantePartida").value=maximoCartas;
+  abrirPantallaPartida(); prepararNuevaRonda(); guardarPartida();
+}
+function abrirPantallaPartida(){
+  document.getElementById("pantallaInicio").classList.add("oculto");
+  document.getElementById("pantallaRecuperar").classList.add("oculto");
+  document.getElementById("pantallaPartida").classList.remove("oculto");
+}
+function generarSecuencia(maximo){
+  const s=[]; for(let i=1;i<=maximo;i++)s.push({cartas:i,vista:false});
+  s.push({cartas:1,vista:true});
+  for(let i=maximo;i>=1;i--)s.push({cartas:i,vista:false});
+  s.push({cartas:1,vista:true}); return s;
+}
+function rondaActual(){ return secuenciaRondas[indiceRonda]; }
+function obtenerIndiceRepartidor(numeroRonda){ return (indiceRepartidorInicial+numeroRonda-1)%jugadores.length; }
+function obtenerRepartidor(numeroRonda){ return jugadores[obtenerIndiceRepartidor(numeroRonda)].nombre; }
+function obtenerOrdenJugadoresRonda(numeroRonda){
+  const inicio=(obtenerIndiceRepartidor(numeroRonda)+1)%jugadores.length,orden=[];
+  for(let paso=0;paso<jugadores.length;paso++)orden.push((inicio+paso)%jugadores.length);
+  return orden;
+}
+function prepararNuevaRonda(){
+  prediccionesConfirmadas=false;
+  jugadores.forEach(j=>{j.prediccion=0;j.ganadas=0;});
+  limpiarMensaje("mensajeRonda");
+  document.getElementById("btnConfirmarPredicciones").classList.remove("oculto");
+  document.getElementById("btnVolverPredicciones").classList.add("oculto");
+  document.getElementById("btnFinalizarRonda").classList.add("oculto");
+  document.getElementById("faseActual").textContent="Predicciones";
+  dibujarPredicciones(); actualizarPosiciones(); actualizarHistorial(); guardarPartida();
+}
+function actualizarEncabezadoRonda(){
+  const r=rondaActual(), numero=indiceRonda+1;
+  document.getElementById("numeroRonda").textContent=`Ronda ${numero}`;
+  document.getElementById("cantidadCartas").textContent=r.cartas;
+  document.getElementById("textoCartas").textContent=r.vista?"vista":(r.cartas===1?"carta":"cartas");
+  document.getElementById("reparte").textContent=`🃏 Reparte: ${obtenerRepartidor(numero)}`;
+}
+function dibujarPredicciones(){
+  actualizarEncabezadoRonda();
+  const c=document.getElementById("jugadoresRonda"); c.innerHTML="";
+  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{\n    const j=jugadores[i];
+    const d=document.createElement("div"); d.className="jugador";
+    d.innerHTML=`<div class="jugador-cabecera"><div class="nombre-jugador">${escaparHTML(j.nombre)}</div><div class="total-jugador">Total: ${j.total}</div></div>
+    <div class="grupo-contador"><div class="etiqueta">¿Cuántas manos va a ganar?</div><div class="contador">
+    <button onclick="cambiarPrediccion(${i},-1)">−</button><div class="valor" id="prediccion-${i}">${j.prediccion}</div><button onclick="cambiarPrediccion(${i},1)">+</button>
+    </div></div>`; c.appendChild(d);
+  });
+  const r=document.createElement("div"); r.id="resumenPredicciones"; r.className="resumen"; c.appendChild(r); actualizarResumenPredicciones();
+}
+function cambiarPrediccion(i,cambio){
+  const cartas=rondaActual().cartas, nuevo=jugadores[i].prediccion+cambio;
+  if(nuevo<0||nuevo>cartas)return;
+  jugadores[i].prediccion=nuevo; document.getElementById(`prediccion-${i}`).textContent=nuevo; actualizarResumenPredicciones(); guardarPartida();
+}
+function actualizarResumenPredicciones(){
+  const e=document.getElementById("resumenPredicciones"); if(!e)return;
+  const cartas=rondaActual().cartas,total=jugadores.reduce((s,j)=>s+j.prediccion,0);
+  e.textContent=`Suma de predicciones: ${total} · Cartas: ${cartas}`;
+  e.style.color=total===cartas?"#b91c1c":"#6b7280"; e.style.fontWeight=total===cartas?"bold":"normal";
+}
+function confirmarPredicciones(){
+  limpiarMensaje("mensajeRonda");
+  const cartas=rondaActual().cartas,total=jugadores.reduce((s,j)=>s+j.prediccion,0);
+  if(total===cartas){mostrarMensaje("mensajeRonda",`Las predicciones suman ${total}. No pueden sumar exactamente ${cartas}.`,"error");return;}
+  prediccionesConfirmadas=true;
+  document.getElementById("btnConfirmarPredicciones").classList.add("oculto");
+  document.getElementById("btnVolverPredicciones").classList.remove("oculto");
+  document.getElementById("btnFinalizarRonda").classList.remove("oculto");
+  document.getElementById("faseActual").textContent="Resultados"; dibujarResultados(); guardarPartida();
+}
+function volverPredicciones(){
+  prediccionesConfirmadas=false; jugadores.forEach(j=>j.ganadas=0);
+  document.getElementById("btnConfirmarPredicciones").classList.remove("oculto");
+  document.getElementById("btnVolverPredicciones").classList.add("oculto");
+  document.getElementById("btnFinalizarRonda").classList.add("oculto");
+  document.getElementById("faseActual").textContent="Predicciones"; limpiarMensaje("mensajeRonda"); dibujarPredicciones(); guardarPartida();
+}
+function dibujarResultados(){
+  actualizarEncabezadoRonda(); const c=document.getElementById("jugadoresRonda"); c.innerHTML="";
+  obtenerOrdenJugadoresRonda(indiceRonda+1).forEach(i=>{\n    const j=jugadores[i];
+    const d=document.createElement("div"); d.className="jugador";
+    d.innerHTML=`<div class="jugador-cabecera"><div class="nombre-jugador">${escaparHTML(j.nombre)}</div><div class="total-jugador">Total: ${j.total}</div></div>
+    <div class="prediccion-confirmada">Predicción: ${j.prediccion}</div>
+    <div class="grupo-contador"><div class="etiqueta">Manos ganadas</div><div class="contador">
+    <button onclick="cambiarGanadas(${i},-1)">−</button><div class="valor" id="ganadas-${i}">${j.ganadas}</div><button id="masGanadas-${i}" onclick="cambiarGanadas(${i},1)">+</button>
+    </div></div><div class="puntos-ronda" id="puntos-${i}"></div><div class="proyectado" id="proyectado-${i}"></div>`;
+    c.appendChild(d);
+  });
+  const r=document.createElement("div"); r.id="resumenGanadas"; r.className="resumen"; c.appendChild(r);
+  jugadores.forEach((_,i)=>actualizarPuntosVisual(i)); actualizarResumenGanadas(); actualizarBotonesGanadas();
+}
+function cambiarGanadas(i,cambio){
+  const cartas=rondaActual().cartas,total=jugadores.reduce((s,j)=>s+j.ganadas,0);
+  if(cambio>0&&total>=cartas)return;
+  const nuevo=jugadores[i].ganadas+cambio; if(nuevo<0||nuevo>cartas)return;
+  jugadores[i].ganadas=nuevo; document.getElementById(`ganadas-${i}`).textContent=nuevo;
+  jugadores.forEach((_,idx)=>actualizarPuntosVisual(idx)); actualizarResumenGanadas(); actualizarBotonesGanadas(); guardarPartida();
+}
+function actualizarBotonesGanadas(){
+  const cartas=rondaActual().cartas,total=jugadores.reduce((s,j)=>s+j.ganadas,0);
+  jugadores.forEach((_,i)=>{const b=document.getElementById(`masGanadas-${i}`);if(b)b.disabled=total>=cartas;});
+}
+function actualizarResumenGanadas(){
+  const e=document.getElementById("resumenGanadas"); if(!e)return;
+  const cartas=rondaActual().cartas,total=jugadores.reduce((s,j)=>s+j.ganadas,0);
+  e.textContent=`Manos asignadas: ${total} de ${cartas}`; e.style.color=total===cartas?"#166534":"#6b7280"; e.style.fontWeight=total===cartas?"bold":"normal";
+}
+function calcularPuntos(j){ return j.ganadas*3+(j.prediccion===j.ganadas?10:0); }
+function actualizarPuntosVisual(i){
+  const j=jugadores[i],p=calcularPuntos(j),e=document.getElementById(`puntos-${i}`),proy=document.getElementById(`proyectado-${i}`);
+  if(j.prediccion===j.ganadas){e.classList.add("acierto");e.textContent=`✓ Predicción acertada · ${p} puntos`;}
+  else{e.classList.remove("acierto");e.textContent=`Puntos de esta ronda: ${p}`;}
+  proy.textContent=`Total proyectado: ${j.total} → ${j.total+p} (+${p})`;
+}
+function finalizarRonda(){
+  limpiarMensaje("mensajeRonda"); const r=rondaActual(), total=jugadores.reduce((s,j)=>s+j.ganadas,0);
+  if(total>r.cartas){mostrarMensaje("mensajeRonda",`Se asignaron ${total} manos. No pueden superar las ${r.cartas} cartas.`,"error");return;}
+  const empatadas=r.cartas-total;
+  if(empatadas>0&&!confirm(`Quedaron ${empatadas} ${empatadas===1?"mano empatada":"manos empatadas"} y no fueron ganadas por ningún jugador. ¿Confirmar?`))return;
+  historial.push({numero:indiceRonda+1,cartas:r.cartas,vista:r.vista,empatadas,repartidor:obtenerRepartidor(indiceRonda+1),
+    jugadores:jugadores.map(j=>({id:j.id,nombre:j.nombre,prediccion:j.prediccion,ganadas:j.ganadas,puntos:calcularPuntos(j)}))});
+  recalcularTotales(); indiceRonda++;
+  if(indiceRonda>=secuenciaRondas.length){guardarPartida();terminarPartida();return;}
+  prepararNuevaRonda(); window.scrollTo({top:0,behavior:"smooth"});
+}
+function recalcularTotales(){
+  jugadores.forEach(j=>j.total=0);
+  historial.forEach(r=>r.jugadores.forEach(res=>{const j=jugadores.find(x=>x.id===res.id)||jugadores.find(x=>x.nombre===res.nombre);if(j)j.total+=res.puntos;}));
+  actualizarPosiciones();
+}
+function actualizarHistorial(){
+  const c=document.getElementById("historial"); if(!historial.length){c.innerHTML="Todavía no hay rondas jugadas.";return;} c.innerHTML="";
+  [...historial].reverse().forEach((r,revIndex)=>{
+    const indiceReal=historial.length-1-revIndex, d=document.createElement("div"); d.className="historial-ronda";
+    const texto=r.vista?"1 vista":`${r.cartas} ${r.cartas===1?"carta":"cartas"}`;
+    const empates=r.empatadas>0?` · ${r.empatadas} ${r.empatadas===1?"empate":"empates"}`:"";
+    let h=`<div class="historial-cabecera"><div class="historial-titulo">Ronda ${r.numero} · ${texto}${empates} · Repartió ${escaparHTML(r.repartidor)}</div><button class="btn-editar" onclick="editarRonda(${indiceReal})">Editar</button></div>`;
+    r.jugadores.forEach(x=>{h+=`<div class="historial-jugador"><strong>${escaparHTML(x.nombre)}</strong> — Predijo ${x.prediccion} · Ganó ${x.ganadas} · +${x.puntos} pts ${x.prediccion===x.ganadas?"✓":""}</div>`;});
+    d.innerHTML=h;c.appendChild(d);
+  });
+}
+function editarRonda(indice){
+  const r=historial[indice], texto=r.vista?"1 vista":`${r.cartas} ${r.cartas===1?"carta":"cartas"}`;
+  let h=`<div class="historial-titulo">Editando ronda ${r.numero} · ${texto}</div><div class="resumen">Modificá los valores y guardá.</div>`;
+  r.jugadores.forEach((x,i)=>{h+=`<div class="jugador"><div class="nombre-jugador">${escaparHTML(x.nombre)}</div><br><label>Predicción</label><input type="number" id="editPred-${i}" min="0" max="${r.cartas}" value="${x.prediccion}"><br><br><label>Manos ganadas</label><input type="number" id="editGan-${i}" min="0" max="${r.cartas}" value="${x.ganadas}"></div>`;});
+  h+=`<button class="btn-verde" onclick="guardarEdicionRonda(${indice})">Guardar corrección</button><button class="btn-secundario-ancho" onclick="actualizarHistorial()">Cancelar</button><div id="mensajeEdicion" class="mensaje"></div>`;
+  document.getElementById("historial").innerHTML=h; document.getElementById("historial").scrollIntoView({behavior:"smooth"});
+}
+function guardarEdicionRonda(indice){
+  const r=historial[indice], nuevos=[]; let sp=0,sg=0;
+  r.jugadores.forEach((x,i)=>{const p=parseInt(document.getElementById(`editPred-${i}`).value),g=parseInt(document.getElementById(`editGan-${i}`).value);nuevos.push({id:x.id,nombre:x.nombre,prediccion:p,ganadas:g});sp+=p;sg+=g;});
+  if(nuevos.some(x=>Number.isNaN(x.prediccion)||Number.isNaN(x.ganadas)||x.prediccion<0||x.ganadas<0||x.prediccion>r.cartas||x.ganadas>r.cartas)){mostrarMensaje("mensajeEdicion","Hay valores inválidos.","error");return;}
+  if(sp===r.cartas){mostrarMensaje("mensajeEdicion",`Las predicciones no pueden sumar exactamente ${r.cartas}.`,"error");return;}
+  if(sg>r.cartas){mostrarMensaje("mensajeEdicion",`Las manos ganadas no pueden superar ${r.cartas}.`,"error");return;}
+  const empatadas=r.cartas-sg;
+  if(empatadas>0&&!confirm(`Quedaron ${empatadas} ${empatadas===1?"mano empatada":"manos empatadas"}. ¿Confirmar la corrección?`))return;
+  r.empatadas=empatadas;
+  r.jugadores=nuevos.map(x=>({...x,puntos:x.ganadas*3+(x.prediccion===x.ganadas?10:0)}));
+  recalcularTotales(); actualizarHistorial(); if(indiceRonda<secuenciaRondas.length){prediccionesConfirmadas?dibujarResultados():dibujarPredicciones();} guardarPartida();
+}
+function actualizarPosiciones(){
+  const t=document.getElementById("tablaPosiciones"); if(!t)return; t.innerHTML="";
+  const o=[...jugadores].sort((a,b)=>b.total-a.total);
+  o.forEach((j,i)=>{const f=document.createElement("tr");f.innerHTML=`<td>${i+1}. ${escaparHTML(j.nombre)}</td><td><strong>${j.total}</strong></td>`;t.appendChild(f);});
+}
+function cambiarMaximo(){
+  limpiarMensaje("mensajeRonda");
+  if(prediccionesConfirmadas){mostrarMensaje("mensajeRonda","Volvé a predicciones antes de cambiar el máximo.","error");return;}
+  const nuevo=parseInt(document.getElementById("maximoDurantePartida").value);
+  if(!nuevo||nuevo<1){mostrarMensaje("mensajeRonda","Ingresá un máximo válido.","error");return;}
+  maximoCartas=nuevo;
+  const nueva=generarSecuencia(nuevo), jugadas=secuenciaRondas.slice(0,indiceRonda);
+  secuenciaRondas=jugadas.concat(nueva.slice(indiceRonda));
+  prepararNuevaRonda(); mostrarMensaje("mensajeRonda",`Máximo actualizado a ${nuevo} cartas.`,"ok");
+}
+function terminarPartida(){
+  actualizarPosiciones(); actualizarHistorial();
+  ["btnConfirmarPredicciones","btnVolverPredicciones","btnFinalizarRonda"].forEach(id=>document.getElementById(id).classList.add("oculto"));
+  document.getElementById("faseActual").textContent="Partida terminada";
+  const o=[...jugadores].sort((a,b)=>b.total-a.total); let ranking="";
+  let puesto=0,prev=null;
+  o.forEach((j,i)=>{if(prev===null||j.total<prev)puesto=i+1;prev=j.total;ranking+=`<tr><td>${puesto}.</td><td>${escaparHTML(j.nombre)}</td><td><strong>${j.total}</strong></td></tr>`;});
+  document.getElementById("jugadoresRonda").innerHTML=`<div style="text-align:center"><div style="font-size:48px">🏆</div><h2>Partida terminada</h2><table class="clasificacion"><tbody>${ranking}</tbody></table><button class="btn-principal" onclick="nuevaPartida()">Nueva partida</button></div>`;
+}
+function guardarPartida(){
+  localStorage.setItem(CLAVE_GUARDADO,JSON.stringify({jugadores,historial,maximoCartas,indiceRonda,secuenciaRondas,prediccionesConfirmadas,indiceRepartidorInicial}));
+}
+function obtenerPartidaGuardada(){try{const d=localStorage.getItem(CLAVE_GUARDADO);return d?JSON.parse(d):null;}catch(e){return null;}}
+function normalizarEstado(estado){
+  // Compatibilidad defensiva si se reutiliza un guardado con secuencia numérica.
+  if(estado.secuenciaRondas?.length && typeof estado.secuenciaRondas[0]==="number"){
+    estado.secuenciaRondas=generarSecuencia(estado.maximoCartas||7);
+  }
+  (estado.jugadores||[]).forEach((j,i)=>{if(!j.id)j.id="J"+(i+1);});
+  return estado;
+}
+function continuarPartida(){
+  let e=obtenerPartidaGuardada(); if(!e){mostrarInicio();return;} e=normalizarEstado(e);
+  jugadores=e.jugadores||[];historial=e.historial||[];maximoCartas=e.maximoCartas||7;indiceRonda=e.indiceRonda||0;secuenciaRondas=e.secuenciaRondas||generarSecuencia(maximoCartas);prediccionesConfirmadas=!!e.prediccionesConfirmadas;indiceRepartidorInicial=Number.isInteger(e.indiceRepartidorInicial)?e.indiceRepartidorInicial:0;
+  document.getElementById("maximoDurantePartida").value=maximoCartas; abrirPantallaPartida(); recalcularTotales(); actualizarHistorial();
+  if(indiceRonda>=secuenciaRondas.length){terminarPartida();return;}
+  if(prediccionesConfirmadas){
+    document.getElementById("faseActual").textContent="Resultados";document.getElementById("btnConfirmarPredicciones").classList.add("oculto");document.getElementById("btnVolverPredicciones").classList.remove("oculto");document.getElementById("btnFinalizarRonda").classList.remove("oculto");dibujarResultados();
+  }else{
+    document.getElementById("faseActual").textContent="Predicciones";document.getElementById("btnConfirmarPredicciones").classList.remove("oculto");document.getElementById("btnVolverPredicciones").classList.add("oculto");document.getElementById("btnFinalizarRonda").classList.add("oculto");dibujarPredicciones();
+  }
+}
+function descartarPartida(){localStorage.removeItem(CLAVE_GUARDADO);mostrarInicio();}
+function nuevaPartida(){localStorage.removeItem(CLAVE_GUARDADO);jugadores=[];historial=[];indiceRonda=0;prediccionesConfirmadas=false;mostrarInicio();}
+function mostrarMensaje(id,texto,tipo){const e=document.getElementById(id);e.textContent=texto;e.className="mensaje "+tipo;}
+function limpiarMensaje(id){const e=document.getElementById(id);e.textContent="";e.className="mensaje";}
+function escaparHTML(texto){const d=document.createElement("div");d.textContent=texto;return d.innerHTML;}
+
+inicializar();
+</script>
+</body>
+</html>

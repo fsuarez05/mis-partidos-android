@@ -1,0 +1,46 @@
+name: Generar APK Anotador de Cartas
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'anotador-cartas/**'
+      - '.github/workflows/build-anotador-cartas.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar Android 35
+        run: |
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Preparar firma estable
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "${RUNNER_TEMP}/mis-partidos-release.jks"
+          keytool -list -keystore "${RUNNER_TEMP}/mis-partidos-release.jks" -storepass "${MISPARTIDOS_STORE_PASSWORD}" -alias "${MISPARTIDOS_KEY_ALIAS}"
+        env:
+          MISPARTIDOS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MISPARTIDOS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      - name: Compilar APK
+        run: gradle -p anotador-cartas :app:assembleDebug --stacktrace
+        env:
+          MISPARTIDOS_KEYSTORE_PATH: ${{ runner.temp }}/mis-partidos-release.jks
+          MISPARTIDOS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MISPARTIDOS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MISPARTIDOS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anotador-de-Cartas-v1.0.0
+          path: anotador-cartas/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

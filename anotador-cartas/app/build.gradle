@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'uy.federico.anotadorcartas'
+    compileSdk 35
+
+    signingConfigs {
+        stable {
+            storeFile file(System.getenv('MISPARTIDOS_KEYSTORE_PATH') ?: 'missing-release-key.jks')
+            storePassword System.getenv('MISPARTIDOS_STORE_PASSWORD')
+            keyAlias System.getenv('MISPARTIDOS_KEY_ALIAS')
+            keyPassword System.getenv('MISPARTIDOS_KEY_PASSWORD')
+        }
+    }
+
+    defaultConfig {
+        applicationId 'uy.federico.anotadorcartas'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        debug { signingConfig signingConfigs.stable }
+    }
+}
