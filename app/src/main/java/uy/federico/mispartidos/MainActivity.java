@@ -10,6 +10,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -39,6 +41,8 @@ public class MainActivity extends Activity {
     private LinearLayout list;
     private String syncStatus = "";
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE d MMM · HH:mm", new Locale("es", "UY"));
+    private final Handler refreshHandler=new Handler(Looper.getMainLooper());
+    private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();refreshHandler.postDelayed(this,60_000L);}};
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
@@ -47,6 +51,8 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
+    @Override protected void onResume(){super.onResume();refreshHandler.removeCallbacks(timeRefresh);refreshHandler.postDelayed(timeRefresh,60_000L);}
+    @Override protected void onPause(){refreshHandler.removeCallbacks(timeRefresh);super.onPause();}
 
     private void buildScreen() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(248,250,252));
@@ -66,15 +72,17 @@ public class MainActivity extends Activity {
     }
 
     private void refresh() {
-        list.removeAllViews(); List<Match> matches = store.upcoming();
+        list.removeAllViews();List<Match>playing=new ArrayList<>(),future=new ArrayList<>();for(Match m:store.upcoming())if(AppStore.isInProgress(m))playing.add(m);else future.add(m);
+        if(!playing.isEmpty()){addSectionTitle("🔴 Jugando ahora");for(Match m:playing)list.addView(matchCard(m));}
         addSectionTitle("Próximos de mis equipos");
-        if (matches.isEmpty()) { TextView empty = text("No hay próximos partidos. Elegí equipos o agregá uno manualmente.",16,Color.DKGRAY,false); empty.setPadding(dp(14),dp(12),dp(14),dp(18)); list.addView(empty); }
-        else {String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
+        if(future.isEmpty()){TextView empty=text("No hay próximos partidos.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else addFavoriteMatchesByDate(future);
+        List<Match>todayPlaying=new ArrayList<>(),todayFuture=new ArrayList<>();for(Match m:store.todayByCompetitions())if(AppStore.isInProgress(m))todayPlaying.add(m);else todayFuture.add(m);
+        if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
-        List<Match> today=store.todayByCompetitions();
-        if(today.isEmpty()){TextView empty=text("Elegí competiciones para ver aquí partidos destacados del día.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}
-        else list.addView(todayTable(today));
+        if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
     }
+
+    private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
 
     private void addSectionTitle(String value){TextView title=text(value,17,Color.rgb(15,23,42),true);title.setPadding(dp(4),dp(14),dp(4),dp(10));list.addView(title);}
 

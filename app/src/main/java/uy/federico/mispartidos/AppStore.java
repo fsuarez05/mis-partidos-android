@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 public class AppStore {
+    static final long MATCH_DURATION_MS=135*60_000L;
     static final String[] CLUBS = {"Peñarol", "Nacional", "Defensor Sporting", "Liverpool (Uruguay)", "Danubio", "Cerro Largo",
             "River Plate", "Boca Juniors", "Racing Club", "Independiente", "San Lorenzo",
             "Flamengo", "Palmeiras", "Corinthians", "São Paulo", "Grêmio", "Internacional",
@@ -119,9 +120,9 @@ public class AppStore {
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
     List<Match>upcoming(){
-        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);
+        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now)r.add(m);
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
-        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now&&favorites.contains(m.team)){
+        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&favorites.contains(m.team)){
             String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;String key=(m.kickoff/60_000L)+"|"+pair;
             Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.team+" vs. "+old.opponent,"",old.competition,old.kickoff,false));
         }
@@ -129,8 +130,9 @@ public class AppStore {
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
     List<Match>todayByCompetitions(){
-        return apiTodayMatches();
+        long now=System.currentTimeMillis();List<Match>result=new ArrayList<>();for(Match m:apiTodayMatches())if(m.kickoff+MATCH_DURATION_MS>now)result.add(m);return result;
     }
+    static boolean isInProgress(Match match){long now=System.currentTimeMillis();return match.kickoff<=now&&match.kickoff+MATCH_DURATION_MS>now;}
     private String[]sampleTeamsFor(String c){
         if(c.contains("Uruguay"))return new String[]{"Defensor Sporting","Danubio"};
         if(c.contains("Argentina"))return new String[]{"Boca Juniors","Racing Club"};
