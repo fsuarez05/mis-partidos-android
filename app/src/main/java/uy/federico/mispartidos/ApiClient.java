@@ -1,6 +1,7 @@
 package uy.federico.mispartidos;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import org.json.JSONArray;
@@ -94,7 +95,8 @@ class ApiClient {
         String teamId=store.apiTeamId(cacheKey);
         if(teamId==null||teamId.isEmpty()){
             Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");
-            String country=national?apiCountryName(selectedName):apiCountryName(AppStore.countryForClub(selectedName));
+            String savedCountry=store.apiTeamCountry(selectedName);
+            String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));
             if(country!=null&&!country.isEmpty())search.put("country",country);
             JSONArray teams=apiData(request("teams",search));
             JSONObject selected=selectTeam(teams,selectedName,country,national);
@@ -127,7 +129,7 @@ class ApiClient {
         prepare(context);new Thread(()->{List<LeagueOption>result=new ArrayList<>();String error=null;try{
             JSONArray data=apiData(request("countryLeagues",params("country",apiCountryName(country))));
             for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),season=x.optString("season");if(!id.isEmpty()&&!name.isEmpty())result.add(new LeagueOption(id,name,season));}
-            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));
+            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));saveLeaguesCache(context,country,result);
         }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
     }
 
@@ -135,11 +137,16 @@ class ApiClient {
         prepare(context);new Thread(()->{List<TeamOption>result=new ArrayList<>();String error=null;try{
             JSONArray data=apiData(request("leagueTeams",params("league",leagueId,"limit","100")));
             for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),country=x.isNull("country")?"":x.optString("country");if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));}
-            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));
+            result.sort((a,b)->a.name.compareToIgnoreCase(b.name));saveTeamsCache(context,leagueId,result);
         }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
     }
 
     private static void prepare(Context context){AppStore s=new AppStore(context);proxyUrl=s.proxyUrl();proxyToken=s.proxyToken();}
+    static List<LeagueOption> cachedCountryLeagues(Context context,String country){List<LeagueOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("leagues_"+normalize(country),"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new LeagueOption(x.getString("id"),x.getString("name"),x.optString("season")));}}catch(Exception ignored){}return r;}
+    static List<TeamOption> cachedLeagueTeams(Context context,String leagueId){List<TeamOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("teams_"+leagueId,"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new TeamOption(x.getString("id"),x.getString("name"),x.optString("country")));}}catch(Exception ignored){}return r;}
+    private static void saveLeaguesCache(Context context,String country,List<LeagueOption>values){try{JSONArray a=new JSONArray();for(LeagueOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("season",x.season);a.put(o);}catalogPrefs(context).edit().putString("leagues_"+normalize(country),a.toString()).apply();}catch(Exception ignored){}}
+    private static void saveTeamsCache(Context context,String leagueId,List<TeamOption>values){try{JSONArray a=new JSONArray();for(TeamOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("country",x.country);a.put(o);}catalogPrefs(context).edit().putString("teams_"+leagueId,a.toString()).apply();}catch(Exception ignored){}}
+    private static SharedPreferences catalogPrefs(Context context){return context.getSharedPreferences("goal_catalog",Context.MODE_PRIVATE);}
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
         JSONObject fallback=null;String wanted=normalize(apiSearchName(selectedName));
