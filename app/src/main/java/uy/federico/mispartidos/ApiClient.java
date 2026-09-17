@@ -88,6 +88,7 @@ class ApiClient {
 
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites.putAll(previousFavorites);
                 if(today.isEmpty()&&failures.contains("partidos de hoy"))today=store.apiTodayMatches();
+                today=reconcileTodayFavorites(store,today,favorites);
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
                 store.saveApiMatches(favoriteList,today);
@@ -101,18 +102,18 @@ class ApiClient {
 
     private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
         if(quotaReached.get()){addPreviousTeam(previous,team,favorites);return;}
-        try{loadTeam(store,team,national,favorites);}
+        try{if(!loadTeam(store,team,national,favorites))addPreviousTeam(previous,team,favorites);}
         catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previous,team,favorites);if(isQuotaError(e.getMessage()))quotaReached.set(true);}
     }
 
-    private static void loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
+    private static boolean loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
         String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
         String teamId=resolveTeamId(store,selectedName,national,cacheKey,false);
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
         JSONArray fixtures;
         try{fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
         catch(Exception e){if(!String.valueOf(e.getMessage()).contains("404"))throw e;store.clearApiTeamId(cacheKey);teamId=resolveTeamId(store,selectedName,national,cacheKey,true);if(teamId==null||teamId.isEmpty())throw e;fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
-        for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
+        List<Match> matches=parseUpcoming(fixtures,selectedName,teamId);for(Match match:matches)out.put(match.id,match);return !matches.isEmpty();
     }
 
     private static String resolveTeamId(AppStore store,String selectedName,boolean national,String cacheKey,boolean force)throws Exception{
@@ -188,10 +189,39 @@ class ApiClient {
             String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
             String opponent=selectedId.equals(homeId)?away:selectedId.equals(awayId)?home:(normalize(home).equals(normalize(selectedName))?away:home);
-            result.add(new Match(matchId(f),selectedName,opponent,competitionName(f),kickoff,false));
+            result.add(new Match(favoriteMatchId(matchId(f),selectedName),selectedName,opponent,competitionName(f),kickoff,false));
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
         return result.isEmpty()?result:new ArrayList<>(result.subList(0,1));
+    }
+
+    private static List<Match> reconcileTodayFavorites(AppStore store,List<Match> today,Map<Long,Match> favorites){
+        List<Match> remaining=new ArrayList<>();List<String> selected=new ArrayList<>(store.selectedTeams());selected.addAll(store.selectedNationalTeams());
+        for(Match match:today){
+            boolean promoted=false;
+            for(String team:selected){
+                boolean home=sameTeam(team,match.team),away=sameTeam(team,match.opponent);
+                if(!home&&!away)continue;
+                String opponent=home?match.opponent:match.team;
+                Match favorite=new Match(favoriteMatchId(match.id,team),team,opponent,match.competition,match.kickoff,false);
+                removeFavoriteForTeam(favorites,team);favorites.put(favorite.id,favorite);promoted=true;
+            }
+            if(!promoted)remaining.add(match);
+        }
+        return remaining;
+    }
+
+    private static void removeFavoriteForTeam(Map<Long,Match> favorites,String team){
+        List<Long> remove=new ArrayList<>();for(Map.Entry<Long,Match> e:favorites.entrySet())if(sameTeam(team,e.getValue().team))remove.add(e.getKey());for(Long id:remove)favorites.remove(id);
+    }
+
+    private static boolean sameTeam(String a,String b){
+        String x=normalize(a),y=normalize(b);if(x.equals(y))return true;
+        return x.length()>4&&y.length()>4&&(x.contains(y)||y.contains(x));
+    }
+
+    private static long favoriteMatchId(long fixtureId,String team){
+        String value=fixtureId+"|"+normalize(team);long id=1125899906842597L;for(int i=0;i<value.length();i++)id=31*id+value.charAt(i);return id==Long.MIN_VALUE?0:Math.abs(id);
     }
 
     private static List<Match> parseToday(JSONObject wrapper,Set<String> clubCups,Set<String> nationalCups)throws Exception{
