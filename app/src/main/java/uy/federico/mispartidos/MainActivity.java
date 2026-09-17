@@ -7,6 +7,7 @@ import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.pm.PackageManager;
 import android.content.Intent;
+import android.provider.CalendarContract;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -47,7 +48,7 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
         BackgroundSyncScheduler.schedule(this);
-        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this); showOpenedMatch(getIntent()); syncNow(false);
+        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent()); syncNow(false);
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
@@ -112,7 +113,8 @@ public class MainActivity extends Activity {
         TextView team = text(m.team,18,Color.rgb(15,23,42),true); TextView versus = text(m.team + "  vs.  " + m.opponent,16,Color.rgb(30,41,59),false);
         TextView date = text(dateFormat.format(new Date(m.kickoff)),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
-        content.addView(team); if(!m.opponent.isEmpty())content.addView(versus); content.addView(date); content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));
+        TextView countdown=text(matchTiming(m),13,AppStore.isInProgress(m)?Color.rgb(190,24,24):Color.rgb(37,99,235),true);
+        content.addView(team); if(!m.opponent.isEmpty())content.addView(versus); content.addView(date);content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); card.setLayoutParams(lp); return card;
     }
 
@@ -289,9 +291,14 @@ public class MainActivity extends Activity {
 
     private void requestNotificationPermission() { if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7); }
     private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
-    private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok)AlarmScheduler.scheduleAll(this);buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
+    private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
+    private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";long days=minutes/(24*60);return days==1?"Mañana":"Faltan "+days+" días";}
+    private void showMatchActions(Match m){String[]items={"Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)addToCalendar(m);else if(pos==1)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
+    private void addToCalendar(Match m){Intent i=new Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI).putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,m.kickoff).putExtra(CalendarContract.EXTRA_EVENT_END_TIME,m.kickoff+AppStore.MATCH_DURATION_MS).putExtra(CalendarContract.Events.TITLE,"⚽ "+(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent)).putExtra(CalendarContract.Events.DESCRIPTION,m.competition);try{startActivity(i);}catch(Exception e){Toast.makeText(this,"No encontré una aplicación de calendario",Toast.LENGTH_LONG).show();}}
+    private void shareMatch(Match m){String match=m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent;String value="⚽ "+match+"\n"+dateFormat.format(new Date(m.kickoff))+"\n"+m.competition;startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,value),"Compartir partido"));}
+    private void chooseNoticeForMatch(Match m){String[]labels={"Usar aviso del equipo","15 minutos antes","30 minutos antes","1 hora antes","2 horas antes"};int[]values={-1,15,30,60,120};new AlertDialog.Builder(this).setTitle("Aviso de este partido").setSingleChoiceItems(labels,-1,null).setPositiveButton("Guardar",(d,w)->{int pos=((AlertDialog)d).getListView().getCheckedItemPosition();if(pos>=0){store.saveNoticeMinutesFor(m,values[pos]);AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Aviso del partido guardado",Toast.LENGTH_SHORT).show();}}).setNegativeButton("Cancelar",null).show();}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
     private LinearLayout.LayoutParams weight(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(2),0,dp(2),0);return p;}
