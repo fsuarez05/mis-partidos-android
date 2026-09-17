@@ -101,7 +101,13 @@ public class AppStore {
     private String matchesJson(List<Match>matches){JSONArray a=new JSONArray();try{for(Match m:matches)a.put(m.toJson());}catch(Exception ignored){}return a.toString();}
     List<Match> apiFavoriteMatches(){return readMatches("api_favorite_matches");}
     List<Match> apiTodayMatches(){return readMatches("api_today_matches");}
-    void saveApiMatches(List<Match>favorites,List<Match>today){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
+    List<Match> recentResults(){return readMatches("api_recent_results");}
+    void saveApiMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
+    boolean dailySummaryEnabled(){return prefs.getBoolean("daily_summary",false);}
+    void saveDailySummaryEnabled(boolean enabled){prefs.edit().putBoolean("daily_summary",enabled).apply();}
+    int dailySummaryHour(){return prefs.getInt("daily_summary_hour",9);}
+    int dailySummaryMinute(){return prefs.getInt("daily_summary_minute",0);}
+    void saveDailySummaryTime(int hour,int minute){prefs.edit().putInt("daily_summary_hour",hour).putInt("daily_summary_minute",minute).apply();}
     boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>43_200_000L;}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
     long nextBackgroundSync(){return prefs.getLong("next_background_sync",0);}
