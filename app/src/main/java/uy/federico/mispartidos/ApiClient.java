@@ -233,9 +233,10 @@ class ApiClient {
     }
 
     private static boolean sameTeam(String a,String b){
-        String x=normalize(a),y=normalize(b);if(x.equals(y))return true;
-        return x.length()>4&&y.length()>4&&(x.contains(y)||y.contains(x));
+        return canonicalTeam(a).equals(canonicalTeam(b));
     }
+
+    private static String canonicalTeam(String value){String n=normalize(value).replaceAll("\\b(fc|afc|cf|ca|sc|club)\\b"," ").replaceAll("\\s+"," ").trim();if(n.equals("internazionale"))return"inter";if(n.equals("paris saint germain"))return"psg";return n;}
 
     private static long favoriteMatchId(long fixtureId,String team){
         String value=fixtureId+"|"+normalize(team);long id=1125899906842597L;for(int i=0;i<value.length();i++)id=31*id+value.charAt(i);return id==Long.MIN_VALUE?0:Math.abs(id);
@@ -250,11 +251,12 @@ class ApiClient {
     }
 
     private static List<Match> parseFavoriteResults(JSONObject wrapper,AppStore store)throws Exception{
-        JSONArray data=apiData(wrapper);List<Match> result=new ArrayList<>();Set<String> favorites=new HashSet<>(store.selectedTeams());favorites.addAll(store.selectedNationalTeams());
+        JSONArray data=apiData(wrapper);List<Match> result=new ArrayList<>();Set<String> favorites=new HashSet<>(store.selectedTeams());favorites.addAll(store.selectedNationalTeams());Set<String>favoriteIds=new HashSet<>();
+        for(String team:store.selectedTeams()){String id=store.apiTeamId("goal:C:"+team);if(id!=null&&!id.isEmpty())favoriteIds.add(id);}for(String team:store.selectedNationalTeams()){String id=store.apiTeamId("goal:N:"+team);if(id!=null&&!id.isEmpty())favoriteIds.add(id);}
         long now=System.currentTimeMillis();for(int i=0;i<data.length();i++){
             JSONObject f=data.getJSONObject(i);long kickoff=parseKickoff(f);if(kickoff>now)continue;
-            String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");boolean selected=false;
-            for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
+            String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");boolean selected=favoriteIds.contains(homeId)||favoriteIds.contains(awayId);
+            if(!selected)for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
             result.add(new Match(matchId(f),home,away,competitionName(f),kickoff,false,score[0],score[1]));
         }return result;
