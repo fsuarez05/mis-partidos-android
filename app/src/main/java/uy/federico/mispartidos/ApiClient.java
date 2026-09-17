@@ -9,6 +9,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -287,6 +288,11 @@ class ApiClient {
     }
 
     private static JSONObject request(String action,Map<String,String> values)throws Exception{
+        IOException last=null;for(int attempt=0;attempt<3;attempt++){try{return requestOnce(action,values);}catch(IOException e){last=e;if(attempt<2)try{Thread.sleep(700L*(attempt+1));}catch(InterruptedException ignored){Thread.currentThread().interrupt();}}}
+        throw new Exception("Sin conexión temporal. Probá actualizar nuevamente.",last);
+    }
+
+    private static JSONObject requestOnce(String action,Map<String,String> values)throws Exception{
         StringBuilder u=new StringBuilder(proxyUrl);u.append(proxyUrl.contains("?")?'&':'?').append("action=").append(enc(action)).append("&token=").append(enc(proxyToken));
         for(Map.Entry<String,String> e:values.entrySet())u.append('&').append(enc(e.getKey())).append('=').append(enc(e.getValue()));
         HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout(45000);c.setInstanceFollowRedirects(true);

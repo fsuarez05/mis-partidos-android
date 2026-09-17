@@ -49,8 +49,10 @@ public class MainActivity extends Activity {
         TextView header = text("⚽  Mis Partidos", 25, Color.WHITE, true); header.setPadding(dp(20), dp(20), dp(20), dp(18)); header.setBackgroundColor(Color.rgb(15,23,42));
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout actions = new LinearLayout(this); actions.setPadding(dp(10),dp(8),dp(10),dp(6));
-        Button teams = button("⚙️ Configuración"); teams.setOnClickListener(v -> showSettings());
-        actions.addView(teams,new LinearLayout.LayoutParams(-1,-2));root.addView(actions);
+        Button teams = button("⭐ Equipos y torneos"); teams.setOnClickListener(v -> openConfiguration());
+        Button settings = button("⚙"); settings.setContentDescription("Ajustes");settings.setOnClickListener(v -> showSettings());
+        Button update = button("↻"); update.setContentDescription("Actualizar partidos");update.setEnabled(!syncStatus.startsWith("Actualizando"));update.setOnClickListener(v -> syncNow(true));
+        actions.addView(teams,new LinearLayout.LayoutParams(0,-2,1));actions.addView(settings,new LinearLayout.LayoutParams(dp(60),-2));actions.addView(update,new LinearLayout.LayoutParams(dp(60),-2));root.addView(actions);
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
         TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
@@ -107,7 +109,7 @@ public class MainActivity extends Activity {
         Set<String> clubs,clubCups,nations,nationCups;
         ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
     }
-    private void showSettings(){String[]items={"Equipos y competiciones","Tiempo de aviso · "+noticeLabel(),"Conexión API", "Actualizar partidos ahora"};new AlertDialog.Builder(this).setTitle("Configuración").setItems(items,(d,pos)->{if(pos==0)openConfiguration();else if(pos==1)chooseNotice();else if(pos==2)showApiConnection();else syncNow(true);}).setNegativeButton("Cerrar",null).show();}
+    private void showSettings(){String[]items={"Tiempo de aviso · "+noticeLabel(),"Conexión API"};new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items,(d,pos)->{if(pos==0)chooseNotice();else showApiConnection();}).setNegativeButton("Cerrar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
 
     private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
