@@ -101,7 +101,7 @@ class ApiClient {
             if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}
         }
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
-        JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","10")));
+        JSONArray fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));
         for(Match match:parseUpcoming(fixtures,selectedName,teamId))out.put(match.id,match);
     }
 
@@ -163,7 +163,7 @@ class ApiClient {
             result.add(new Match(matchId(f),selectedName,opponent,competitionName(f),kickoff,false));
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
-        return result.size()>10?new ArrayList<>(result.subList(0,10)):result;
+        return result.isEmpty()?result:new ArrayList<>(result.subList(0,1));
     }
 
     private static List<Match> parseToday(JSONObject wrapper,Set<String> clubCups,Set<String> nationalCups)throws Exception{
