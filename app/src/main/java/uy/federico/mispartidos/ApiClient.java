@@ -25,6 +25,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class ApiClient {
     interface Callback { void done(boolean ok, String message); }
@@ -56,9 +62,9 @@ class ApiClient {
         if(!force&&!store.needsApiSync()){callback.done(true,"Datos actualizados");return;}
         new Thread(()->{
             try{
-                Map<Long,Match> favorites=new LinkedHashMap<>();
+                Map<Long,Match> favorites=new ConcurrentHashMap<>();
                 Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
-                List<String> failures=new ArrayList<>(),reasons=new ArrayList<>();
+                List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
                 List<Match> today=new ArrayList<>();
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
                 Set<String> clubCompetitions=store.selectedClubCompetitions();
@@ -70,13 +76,14 @@ class ApiClient {
                     }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
                 }
 
-                for(String team:store.selectedTeams()){
-                    try{loadTeam(store,team,false,favorites);}
-                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previousFavorites,team,favorites);if(isQuotaError(e.getMessage()))break;}
-                }
-                if(!containsQuotaError(reasons))for(String team:store.selectedNationalTeams()){
-                    try{loadTeam(store,team,true,favorites);}
-                    catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previousFavorites,team,favorites);if(isQuotaError(e.getMessage()))break;}
+                int teamCount=store.selectedTeams().size()+store.selectedNationalTeams().size();
+                if(teamCount>0){
+                    ExecutorService pool=Executors.newFixedThreadPool(Math.min(4,teamCount));
+                    AtomicBoolean quotaReached=new AtomicBoolean(false);
+                    for(String team:store.selectedTeams())pool.submit(()->loadTeamSafe(store,team,false,favorites,previousFavorites,failures,reasons,quotaReached));
+                    for(String team:store.selectedNationalTeams())pool.submit(()->loadTeamSafe(store,team,true,favorites,previousFavorites,failures,reasons,quotaReached));
+                    pool.shutdown();
+                    if(!pool.awaitTermination(90,TimeUnit.SECONDS))pool.shutdownNow();
                 }
 
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites=toMap(store.apiFavoriteMatches());
@@ -90,6 +97,12 @@ class ApiClient {
                 new Handler(Looper.getMainLooper()).post(()->callback.done(false,"No se pudo actualizar: "+e.getMessage()));
             }
         }).start();
+    }
+
+    private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
+        if(quotaReached.get()){addPreviousTeam(previous,team,favorites);return;}
+        try{loadTeam(store,team,national,favorites);}
+        catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previous,team,favorites);if(isQuotaError(e.getMessage()))quotaReached.set(true);}
     }
 
     private static void loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
