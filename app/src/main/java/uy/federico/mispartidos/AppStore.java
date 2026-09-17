@@ -99,6 +99,8 @@ public class AppStore {
     void saveApiMatches(List<Match>favorites,List<Match>today){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
     boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>43_200_000L;}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
+    long nextBackgroundSync(){return prefs.getLong("next_background_sync",0);}
+    void saveNextBackgroundSync(long value){prefs.edit().putLong("next_background_sync",value).apply();}
     String proxyUrl(){return prefs.getString("proxy_url","").trim();}
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}

@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
+        BackgroundSyncScheduler.schedule(this);
         buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this); syncNow(false);
     }
 
@@ -54,7 +55,7 @@ public class MainActivity extends Activity {
         Button update = button("↻"); update.setContentDescription("Actualizar partidos");update.setEnabled(!syncStatus.startsWith("Actualizando"));update.setOnClickListener(v -> syncNow(true));
         actions.addView(teams,new LinearLayout.LayoutParams(0,-2,1));actions.addView(settings,new LinearLayout.LayoutParams(dp(60),-2));actions.addView(update,new LinearLayout.LayoutParams(dp(60),-2));root.addView(actions);
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
-        TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
+        TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection+nextSyncText(), 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
         if(syncStatus.startsWith("Actualizando")){ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));}
         ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(84)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
@@ -269,6 +270,7 @@ public class MainActivity extends Activity {
     private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
     private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok)AlarmScheduler.scheduleAll(this);buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
+    private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
     private LinearLayout.LayoutParams weight(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(2),0,dp(2),0);return p;}
