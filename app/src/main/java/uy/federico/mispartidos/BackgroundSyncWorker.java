@@ -23,7 +23,7 @@ public class BackgroundSyncWorker extends Worker {
         AtomicBoolean success = new AtomicBoolean(false);
         ApiClient.sync(context, true, (ok, message) -> {
             success.set(ok);
-            if (ok) {AlarmScheduler.scheduleAll(context);MatchWidgetProvider.updateAll(context);}
+            if (ok) {AlarmScheduler.scheduleAll(context);DailySummaryScheduler.schedule(context);MatchWidgetProvider.updateAll(context);}
             finished.countDown();
         });
         try {
