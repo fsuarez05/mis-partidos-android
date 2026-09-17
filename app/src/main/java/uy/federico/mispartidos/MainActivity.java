@@ -36,6 +36,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 public class MainActivity extends Activity {
     private AppStore store;
@@ -303,7 +307,7 @@ public class MainActivity extends Activity {
     private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
-    private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";long days=minutes/(24*60);return days==1?"Mañana":"Faltan "+days+" días";}
+    private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(m.kickoff).atZone(zone).toLocalDate();long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}
     private void showMatchActions(Match m){String[]items={"Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)addToCalendar(m);else if(pos==1)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void addToCalendar(Match m){Intent i=new Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI).putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,m.kickoff).putExtra(CalendarContract.EXTRA_EVENT_END_TIME,m.kickoff+AppStore.MATCH_DURATION_MS).putExtra(CalendarContract.Events.TITLE,"⚽ "+(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent)).putExtra(CalendarContract.Events.DESCRIPTION,m.competition);try{startActivity(i);}catch(Exception e){Toast.makeText(this,"No encontré una aplicación de calendario",Toast.LENGTH_LONG).show();}}
     private void shareMatch(Match m){String match=m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent;String value="⚽ "+match+"\n"+dateFormat.format(new Date(m.kickoff))+"\n"+m.competition;startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,value),"Compartir partido"));}
