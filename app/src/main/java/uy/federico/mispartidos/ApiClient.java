@@ -225,16 +225,23 @@ class ApiClient {
         for(String full:all){
             String[] parts=full.split("›");String expectedName=canonicalCompetition(AppStore.shortName(full));
             String expectedScope=parts.length>1?canonicalCountry(parts[parts.length-2].trim()):"";
-            boolean nameMatches=expectedName.equals(actualName)||actualName.startsWith(expectedName+" ")||expectedName.startsWith(actualName+" ");
+            if(hasDifferentCategory(expectedName,actualName))continue;
             if(expectedName.equals("eliminatorias")){
-                if(expectedScope.equals("conmebol")&&(actualName.contains("world cup")||actualName.contains("qualification"))&&actualCountry.equals("intl"))return true;
-                if(expectedScope.equals("uefa")&&(actualName.contains("world cup")||actualName.contains("qualification"))&&actualCountry.equals("intl"))return true;
+                boolean qualification=actualName.contains("world cup")&&actualName.contains("qualification");
+                if(expectedScope.equals("conmebol")&&qualification&&(actualName.contains("conmebol")||actualName.contains("south america")))return true;
+                if(expectedScope.equals("uefa")&&qualification&&(actualName.contains("uefa")||actualName.contains("europe")))return true;
                 continue;
             }
-            if(!nameMatches)continue;
+            if(!expectedName.equals(actualName))continue;
             if(expectedScope.equals("uefa")||expectedScope.equals("conmebol")||expectedScope.equals("fifa"))return actualCountry.equals("intl")||actualCountry.equals("world")||actualName.contains(expectedScope);
             if(expectedScope.equals(actualCountry))return true;
         }
+        return false;
+    }
+
+    private static boolean hasDifferentCategory(String expected,String actual){
+        String[] markers={"women","woman","female","u17","u18","u19","u20","u21","u23","youth","reserve","reserves","futsal","beach","amateur"};
+        for(String marker:markers)if(actual.contains(marker)&&!expected.contains(marker))return true;
         return false;
     }
 
@@ -248,6 +255,7 @@ class ApiClient {
         if(n.equals("eurocopa"))return"uefa european championship";if(n.equals("copa del mundo"))return"world cup";
         if(n.equals("mundial de clubes"))return"fifa club world cup";if(n.equals("amistosos internacionales"))return"friendlies";
         if(n.equals("copa libertadores"))return"conmebol libertadores";if(n.equals("copa sudamericana"))return"conmebol sudamericana";
+        if(n.equals("fifa world cup"))return"world cup";if(n.equals("conmebol copa america"))return"copa america";
         return n;
     }
 
