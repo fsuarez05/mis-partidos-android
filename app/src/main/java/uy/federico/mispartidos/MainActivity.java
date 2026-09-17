@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -42,8 +43,10 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
         BackgroundSyncScheduler.schedule(this);
-        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this); syncNow(false);
+        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this); showOpenedMatch(getIntent()); syncNow(false);
     }
+
+    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
 
     private void buildScreen() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(248,250,252));
@@ -66,7 +69,7 @@ public class MainActivity extends Activity {
         list.removeAllViews(); List<Match> matches = store.upcoming();
         addSectionTitle("Próximos de mis equipos");
         if (matches.isEmpty()) { TextView empty = text("No hay próximos partidos. Elegí equipos o agregá uno manualmente.",16,Color.DKGRAY,false); empty.setPadding(dp(14),dp(12),dp(14),dp(18)); list.addView(empty); }
-        else for (Match m : matches) list.addView(matchCard(m));
+        else {String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         List<Match> today=store.todayByCompetitions();
         if(today.isEmpty()){TextView empty=text("Elegí competiciones para ver aquí partidos destacados del día.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}
@@ -94,12 +97,14 @@ public class MainActivity extends Activity {
     private View tableDivider(){View line=new View(this);line.setBackgroundColor(Color.rgb(241,245,249));line.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(1)));return line;}
 
     private View matchCard(Match m) {
-        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(16),dp(14),dp(16),dp(14));
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.HORIZONTAL); card.setPadding(dp(14),dp(14),dp(14),dp(14));
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(); bg.setColor(Color.WHITE); bg.setCornerRadius(dp(14)); bg.setStroke(dp(1), Color.rgb(226,232,240)); card.setBackground(bg);
+        TextView badge=text(teamInitials(m.team),14,Color.WHITE,true);badge.setGravity(Gravity.CENTER);android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);badgeBg.setColor(teamColor(m.team));badge.setBackground(badgeBg);
+        LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),0,0,0);
         TextView team = text(m.team,18,Color.rgb(15,23,42),true); TextView versus = text(m.team + "  vs.  " + m.opponent,16,Color.rgb(30,41,59),false);
         TextView date = text(dateFormat.format(new Date(m.kickoff)),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
-        card.addView(team); card.addView(versus); card.addView(date); card.addView(comp);
+        content.addView(team); content.addView(versus); content.addView(date); content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); card.setLayoutParams(lp); return card;
     }
 
@@ -110,7 +115,7 @@ public class MainActivity extends Activity {
         Set<String> clubs,clubCups,nations,nationCups;
         ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
     }
-    private void showSettings(){String[]items={"Tiempo de aviso · "+noticeLabel(),"Conexión API"};new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items,(d,pos)->{if(pos==0)chooseNotice();else showApiConnection();}).setNegativeButton("Cerrar",null).show();}
+    private void showSettings(){String[]items={"Tiempo general de aviso · "+noticeLabel(),"Avisos por equipo","Estado de sincronización","Conexión API"};new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items,(d,pos)->{if(pos==0)chooseNotice();else if(pos==1)chooseTeamNotice();else if(pos==2)showSyncStatus();else showApiConnection();}).setNegativeButton("Cerrar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
 
     private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
@@ -241,6 +246,14 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Guardar",(d,w)->{ int pos=((AlertDialog)d).getListView().getCheckedItemPosition(); store.saveNoticeMinutes(values[pos]); refresh(); AlarmScheduler.scheduleAll(this); })
                 .setNegativeButton("Cancelar",null).show();
     }
+
+    private void chooseTeamNotice(){List<String>teams=new ArrayList<>(store.selectedTeams());teams.addAll(store.selectedNationalTeams());if(teams.isEmpty()){Toast.makeText(this,"Primero elegí algún equipo",Toast.LENGTH_SHORT).show();return;}String[]labels=new String[teams.size()];for(int i=0;i<teams.size();i++){int m=store.noticeMinutesFor(teams.get(i));labels[i]=teams.get(i)+" · "+noticeLabel(m);}new AlertDialog.Builder(this).setTitle("Avisos por equipo").setItems(labels,(d,pos)->chooseNoticeForTeam(teams.get(pos))).setNegativeButton("Volver",(d,w)->showSettings()).show();}
+    private void chooseNoticeForTeam(String team){String[]labels={"Usar ajuste general","15 minutos antes","30 minutos antes","1 hora antes","2 horas antes"};int[]values={-1,15,30,60,120};new AlertDialog.Builder(this).setTitle(team).setSingleChoiceItems(labels,-1,null).setPositiveButton("Guardar",(d,w)->{int pos=((AlertDialog)d).getListView().getCheckedItemPosition();if(pos>=0){store.saveNoticeMinutesFor(team,values[pos]);AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Aviso guardado",Toast.LENGTH_SHORT).show();}}).setNegativeButton("Cancelar",null).show();}
+    private String noticeLabel(int m){return m<60?m+" min antes":(m/60)+(m==60?" hora antes":" horas antes");}
+    private void showSyncStatus(){String configured=ApiClient.configured(this)?"Configurada":"Sin configurar";String message="Conexión API: "+configured+"\n"+lastSyncText()+nextSyncText()+"\nEquipos consultados: "+(store.selectedTeams().size()+store.selectedNationalTeams().size())+"\nPartidos guardados: "+store.upcoming().size()+"\n\nLa actualización automática necesita conexión y Android puede postergarla para ahorrar batería.";new AlertDialog.Builder(this).setTitle("Estado de sincronización").setMessage(message).setPositiveButton("Actualizar ahora",(d,w)->syncNow(true)).setNegativeButton("Cerrar",null).show();}
+    private void showOpenedMatch(Intent intent){if(intent==null||!intent.getBooleanExtra("open_match",false))return;String team=intent.getStringExtra("team"),opponent=intent.getStringExtra("opponent");long kickoff=intent.getLongExtra("kickoff",0);intent.removeExtra("open_match");new AlertDialog.Builder(this).setTitle("⚽ "+team).setMessage(team+" vs. "+opponent+"\n"+dateFormat.format(new Date(kickoff))).setPositiveButton("Cerrar",null).show();}
+    private String teamInitials(String name){String[]parts=name.trim().split("\\s+");StringBuilder value=new StringBuilder();for(String part:parts)if(!part.isEmpty()&&value.length()<2)value.append(Character.toUpperCase(part.charAt(0)));return value.length()==0?"⚽":value.toString();}
+    private int teamColor(String name){int[]colors={Color.rgb(30,64,175),Color.rgb(180,83,9),Color.rgb(22,101,52),Color.rgb(153,27,27),Color.rgb(88,28,135)};return colors[Math.abs(name.hashCode()%colors.length)];}
 
     private void addManualMatch() {
         if (store.selectedTeams().isEmpty() && store.selectedNationalTeams().isEmpty()) {

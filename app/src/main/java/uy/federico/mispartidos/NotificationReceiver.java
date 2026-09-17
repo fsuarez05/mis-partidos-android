@@ -18,8 +18,11 @@ public class NotificationReceiver extends BroadcastReceiver {
         long kickoff = intent.getLongExtra("kickoff", 0);
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Avisos de partidos", NotificationManager.IMPORTANCE_HIGH));
-        Intent open = new Intent(context, MainActivity.class);
-        PendingIntent content = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Intent open = new Intent(context, MainActivity.class)
+                .putExtra("open_match", true).putExtra("team", team)
+                .putExtra("opponent", opponent).putExtra("kickoff", kickoff)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent content = PendingIntent.getActivity(context, (int)(kickoff % Integer.MAX_VALUE), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         String when = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(kickoff));
         boolean insideWindow = intent.getBooleanExtra("inside_window", false);
         long remaining = Math.max(1, (kickoff-System.currentTimeMillis()+59_999)/60_000);

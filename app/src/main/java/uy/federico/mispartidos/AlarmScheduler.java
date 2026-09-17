@@ -40,7 +40,7 @@ public class AlarmScheduler {
         }
         Set<String> currentIds = new HashSet<>();
         for (Match match : store.upcoming()) {
-            schedule(context, match, store.noticeMinutes());
+            schedule(context, match, store.noticeMinutesFor(match.team));
             currentIds.add(String.valueOf(match.id));
         }
         store.saveScheduledAlarmIds(currentIds);

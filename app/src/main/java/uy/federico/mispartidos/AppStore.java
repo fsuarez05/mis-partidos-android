@@ -88,6 +88,8 @@ public class AppStore {
     static String shortName(String full){int p=full.lastIndexOf('›');return p<0?full:full.substring(p+1).trim();}
 
     int noticeMinutes(){return prefs.getInt("notice_minutes",60);} void saveNoticeMinutes(int m){prefs.edit().putInt("notice_minutes",m).apply();}
+    int noticeMinutesFor(String team){try{return new JSONObject(prefs.getString("team_notice_minutes","{}")).optInt(team,noticeMinutes());}catch(Exception ignored){return noticeMinutes();}}
+    void saveNoticeMinutesFor(String team,int minutes){try{JSONObject values=new JSONObject(prefs.getString("team_notice_minutes","{}"));if(minutes<0)values.remove(team);else values.put(team,minutes);prefs.edit().putString("team_notice_minutes",values.toString()).apply();}catch(Exception ignored){}}
     boolean immediateNoticeShown(Match m,int min){return prefs.getBoolean("shown_"+m.id+"_"+min,false);} void markImmediateNoticeShown(Match m,int min){prefs.edit().putBoolean("shown_"+m.id+"_"+min,true).apply();}
     List<Match>manualMatches(){List<Match>r=new ArrayList<>();try{JSONArray a=new JSONArray(prefs.getString("manual_matches","[]"));for(int i=0;i<a.length();i++)r.add(Match.fromJson(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     void addManual(Match m){List<Match>c=manualMatches();c.add(m);JSONArray a=new JSONArray();try{for(Match x:c)a.put(x.toJson());}catch(Exception ignored){}prefs.edit().putString("manual_matches",a.toString()).apply();}
