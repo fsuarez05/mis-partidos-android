@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
         if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
-        List<Match>results=store.recentResults();if(!results.isEmpty()){addSectionTitle("Resultados recientes · mis equipos");list.addView(resultsTable(results));}
+        List<Match>results=store.recentResults();addSectionTitle("Resultados recientes · mis equipos");if(results.isEmpty()){TextView empty=text("No hay resultados recientes de tus equipos.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
     }
 
     private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
