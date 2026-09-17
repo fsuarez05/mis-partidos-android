@@ -104,7 +104,8 @@ class ApiClient {
 
     private static String resolveTeamId(AppStore store,String selectedName,boolean national,String cacheKey,boolean force)throws Exception{
         String teamId=force?null:store.apiTeamId(cacheKey);if(teamId!=null&&!teamId.isEmpty())return teamId;
-        Map<String,String> search=params("search",apiSearchName(selectedName),"limit","20");String savedCountry=store.apiTeamCountry(selectedName);String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));if(country!=null&&!country.isEmpty())search.put("country",country);
+        String searchName=national?apiCountryName(selectedName):apiSearchName(selectedName);
+        Map<String,String> search=params("search",searchName,"limit","20");String savedCountry=store.apiTeamCountry(selectedName);String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));if(country!=null&&!country.isEmpty())search.put("country",country);
         JSONArray teams=apiData(request("teams",search));JSONObject selected=selectTeam(teams,selectedName,country,national);if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}return teamId;
     }
 
@@ -156,7 +157,7 @@ class ApiClient {
     private static int leagueRank(String name){String n=normalize(name);if(n.contains("premier league")||n.equals("la liga")||n.equals("serie a")||n.equals("bundesliga")||n.equals("ligue 1")||n.contains("primeira liga")||n.contains("primera division"))return 0;if(n.contains("segunda")||n.contains("ligue 2")||n.contains("serie b")||n.contains("championship")||n.contains("2 bundesliga"))return 1;return 2;}
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
-        JSONObject fallback=null;String wanted=normalize(apiSearchName(selectedName));
+        JSONObject fallback=null;String wanted=normalize(national?apiCountryName(selectedName):apiSearchName(selectedName));
         for(int i=0;i<teams.length();i++){
             JSONObject team=teams.optJSONObject(i);if(team==null)continue;
             String name=normalize(team.optString("name")),country=canonicalCountry(team.optString("country"));
@@ -274,6 +275,13 @@ class ApiClient {
         if(canonical.equals("argelia"))return"Algeria";if(canonical.equals("tunez"))return"Tunisia";if(canonical.equals("china"))return"China";
         if(canonical.equals("india"))return"India";if(canonical.equals("arabia saudita"))return"Saudi Arabia";if(canonical.equals("catar"))return"Qatar";
         if(canonical.equals("emiratos arabes unidos"))return"United Arab Emirates";if(canonical.equals("iran"))return"Iran";if(canonical.equals("nueva zelanda"))return"New Zealand";
+        if(canonical.equals("albania"))return"Albania";if(canonical.equals("bosnia y herzegovina"))return"Bosnia and Herzegovina";
+        if(canonical.equals("bulgaria"))return"Bulgaria";if(canonical.equals("eslovaquia"))return"Slovakia";if(canonical.equals("eslovenia"))return"Slovenia";
+        if(canonical.equals("finlandia"))return"Finland";if(canonical.equals("gales"))return"Wales";if(canonical.equals("georgia"))return"Georgia";
+        if(canonical.equals("hungria"))return"Hungary";if(canonical.equals("irlanda"))return"Ireland";if(canonical.equals("irlanda del norte"))return"Northern Ireland";
+        if(canonical.equals("islandia"))return"Iceland";if(canonical.equals("serbia"))return"Serbia";if(canonical.equals("ucrania"))return"Ukraine";
+        if(canonical.equals("costa de marfil"))return"Ivory Coast";if(canonical.equals("camerun"))return"Cameroon";if(canonical.equals("ghana"))return"Ghana";
+        if(canonical.equals("jamaica"))return"Jamaica";if(canonical.equals("panama"))return"Panama";if(canonical.equals("iraq"))return"Iraq";
         return value;
     }
 

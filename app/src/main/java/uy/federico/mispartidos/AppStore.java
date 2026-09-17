@@ -19,9 +19,16 @@ public class AppStore {
             "Manchester City", "Manchester United", "Chelsea", "Liverpool", "Arsenal", "Tottenham",
             "PSG", "Olympique de Marsella", "Monaco", "Bayern Múnich", "Borussia Dortmund",
             "Juventus", "Inter", "Milan", "Napoli", "Benfica", "Porto", "Ajax"};
-    static final String[] NATIONAL_TEAMS = {"Uruguay", "Argentina", "Brasil", "Chile", "Colombia", "Paraguay", "Perú", "Ecuador", "Bolivia", "Venezuela",
-            "España", "Francia", "Inglaterra", "Alemania", "Italia", "Portugal", "Países Bajos", "Bélgica", "Croacia",
-            "México", "Estados Unidos", "Canadá", "Japón", "Corea del Sur", "Australia", "Marruecos", "Senegal", "Nigeria"};
+    static final String[] NATIONAL_TEAMS = {
+            "Uruguay", "Argentina", "Brasil", "Chile", "Colombia", "Paraguay", "Perú", "Ecuador", "Bolivia", "Venezuela",
+            "Alemania", "Albania", "Austria", "Bélgica", "Bosnia y Herzegovina", "Bulgaria", "Croacia", "Dinamarca", "Escocia",
+            "Eslovaquia", "Eslovenia", "España", "Finlandia", "Francia", "Gales", "Georgia", "Grecia", "Hungría", "Inglaterra",
+            "Irlanda", "Irlanda del Norte", "Islandia", "Italia", "Noruega", "Países Bajos", "Polonia", "Portugal",
+            "República Checa", "Rumania", "Serbia", "Suecia", "Suiza", "Turquía", "Ucrania",
+            "México", "Estados Unidos", "Canadá", "Costa Rica", "Honduras", "Panamá", "Jamaica",
+            "Argelia", "Camerún", "Costa de Marfil", "Egipto", "Ghana", "Marruecos", "Nigeria", "Senegal", "Sudáfrica", "Túnez",
+            "Arabia Saudita", "Australia", "Catar", "China", "Corea del Sur", "Emiratos Árabes Unidos", "Irán", "Iraq", "Japón",
+            "Nueva Zelanda"};
     static final String[] CLUB_COMPETITIONS = {
             "América del Sur › Uruguay › Primera División", "América del Sur › Uruguay › Copa AUF Uruguay", "América del Sur › Uruguay › Supercopa Uruguaya",
             "América del Sur › Argentina › Liga Profesional", "América del Sur › Argentina › Copa Argentina",
@@ -58,18 +65,25 @@ public class AppStore {
         Set<String>r=new LinkedHashSet<>(); for(String team:teams){String country=countryForClub(team);if(country!=null)addContaining(r,CLUB_COMPETITIONS,country);}
         if(!teams.isEmpty())addContaining(r,CLUB_COMPETITIONS,"Champions League","Copa Libertadores","Copa Sudamericana","Mundial de Clubes");return r;
     }
-    static Set<String> suggestedNationalCompetitions(Set<String> teams){Set<String>r=new LinkedHashSet<>();if(any(teams,"Uruguay","Argentina","Brasil"))addContaining(r,NATIONAL_COMPETITIONS,"CONMEBOL","Mundo");if(any(teams,"España","Francia","Inglaterra"))addContaining(r,NATIONAL_COMPETITIONS,"UEFA","Mundo");return r;}
+    static Set<String> suggestedNationalCompetitions(Set<String> teams){
+        Set<String>r=new LinkedHashSet<>();boolean southAmerica=false,europe=false;
+        for(String team:teams){String continent=continentForNational(team);southAmerica|="América del Sur".equals(continent);europe|="Europa".equals(continent);}
+        if(southAmerica)addContaining(r,NATIONAL_COMPETITIONS,"CONMEBOL");
+        if(europe)addContaining(r,NATIONAL_COMPETITIONS,"UEFA");
+        if(!teams.isEmpty())addContaining(r,NATIONAL_COMPETITIONS,"Mundo");
+        return r;
+    }
     private static boolean any(Set<String>v,String...w){for(String s:w)if(v.contains(s))return true;return false;}
     private static void addContaining(Set<String>o,String[]source,String...terms){for(String s:source)for(String t:terms)if(s.contains(t)){o.add(s);break;}}
     static String countryForClub(String t){if(any(new HashSet<>(java.util.Arrays.asList("Peñarol","Nacional","Defensor Sporting","Liverpool (Uruguay)","Danubio","Cerro Largo")),t))return"Uruguay";if(any(new HashSet<>(java.util.Arrays.asList("River Plate","Boca Juniors","Racing Club","Independiente","San Lorenzo")),t))return"Argentina";if(any(new HashSet<>(java.util.Arrays.asList("Flamengo","Palmeiras","Corinthians","São Paulo","Grêmio","Internacional")),t))return"Brasil";if(any(new HashSet<>(java.util.Arrays.asList("Barcelona","Real Madrid","Atlético de Madrid","Sevilla","Valencia","Villarreal")),t))return"España";if(any(new HashSet<>(java.util.Arrays.asList("Manchester City","Manchester United","Chelsea","Liverpool","Arsenal","Tottenham")),t))return"Inglaterra";if(any(new HashSet<>(java.util.Arrays.asList("PSG","Olympique de Marsella","Monaco")),t))return"Francia";if(t.contains("Bayern")||t.contains("Dortmund"))return"Alemania";if(any(new HashSet<>(java.util.Arrays.asList("Juventus","Inter","Milan","Napoli")),t))return"Italia";if(t.equals("Benfica")||t.equals("Porto"))return"Portugal";if(t.equals("Ajax"))return"Países Bajos";return null;}
     static String continentForClub(String t){String c=countryForClub(t);return c==null?null:(c.equals("Uruguay")||c.equals("Argentina")||c.equals("Brasil")?"América del Sur":"Europa");}
     static String continentForNational(String t){
         if(any(new HashSet<>(java.util.Arrays.asList("Uruguay","Argentina","Brasil","Chile","Colombia","Paraguay","Perú","Ecuador","Bolivia","Venezuela")),t))return"América del Sur";
-        if(any(new HashSet<>(java.util.Arrays.asList("España","Francia","Inglaterra","Alemania","Italia","Portugal","Países Bajos","Bélgica","Croacia")),t))return"Europa";
-        if(any(new HashSet<>(java.util.Arrays.asList("México","Estados Unidos","Canadá")),t))return"Norteamérica";
-        if(any(new HashSet<>(java.util.Arrays.asList("Marruecos","Senegal","Nigeria")),t))return"África";
-        if(any(new HashSet<>(java.util.Arrays.asList("Japón","Corea del Sur")),t))return"Asia";
-        if(t.equals("Australia"))return"Oceanía";return null;
+        if(any(new HashSet<>(java.util.Arrays.asList("Alemania","Albania","Austria","Bélgica","Bosnia y Herzegovina","Bulgaria","Croacia","Dinamarca","Escocia","Eslovaquia","Eslovenia","España","Finlandia","Francia","Gales","Georgia","Grecia","Hungría","Inglaterra","Irlanda","Irlanda del Norte","Islandia","Italia","Noruega","Países Bajos","Polonia","Portugal","República Checa","Rumania","Serbia","Suecia","Suiza","Turquía","Ucrania")),t))return"Europa";
+        if(any(new HashSet<>(java.util.Arrays.asList("México","Estados Unidos","Canadá","Costa Rica","Honduras","Panamá","Jamaica")),t))return"Norteamérica";
+        if(any(new HashSet<>(java.util.Arrays.asList("Argelia","Camerún","Costa de Marfil","Egipto","Ghana","Marruecos","Nigeria","Senegal","Sudáfrica","Túnez")),t))return"África";
+        if(any(new HashSet<>(java.util.Arrays.asList("Arabia Saudita","Catar","China","Corea del Sur","Emiratos Árabes Unidos","Irán","Iraq","Japón")),t))return"Asia";
+        if(any(new HashSet<>(java.util.Arrays.asList("Australia","Nueva Zelanda")),t))return"Oceanía";return null;
     }
     static String shortName(String full){int p=full.lastIndexOf('›');return p<0?full:full.substring(p+1).trim();}
 
