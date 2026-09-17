@@ -65,18 +65,19 @@ class ApiClient {
                 Map<Long,Match> favorites=new ConcurrentHashMap<>();
                 Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
                 List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
-                List<Match> today=new ArrayList<>();
+                List<Match> today=new ArrayList<>(),allToday=new ArrayList<>();
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
                 Set<String> clubCompetitions=store.selectedClubCompetitions();
                 Set<String> nationalCompetitions=store.selectedNationalCompetitions();
-                if(!clubCompetitions.isEmpty()||!nationalCompetitions.isEmpty()){
+                int teamCount=store.selectedTeams().size()+store.selectedNationalTeams().size();
+                if(teamCount>0||!clubCompetitions.isEmpty()||!nationalCompetitions.isEmpty()){
                     try{
                         JSONObject response=request("fixturesByDate",params("date",date,"limit","100"));
                         today=parseToday(response,clubCompetitions,nationalCompetitions);
+                        allToday=parseAllToday(response);
                     }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
                 }
 
-                int teamCount=store.selectedTeams().size()+store.selectedNationalTeams().size();
                 if(teamCount>0){
                     ExecutorService pool=Executors.newFixedThreadPool(Math.min(4,teamCount));
                     AtomicBoolean quotaReached=new AtomicBoolean(false);
@@ -88,6 +89,7 @@ class ApiClient {
 
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites.putAll(previousFavorites);
                 if(today.isEmpty()&&failures.contains("partidos de hoy"))today=store.apiTodayMatches();
+                reconcileTodayFavorites(store,allToday,favorites);
                 today=reconcileTodayFavorites(store,today,favorites);
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
@@ -225,10 +227,18 @@ class ApiClient {
     }
 
     private static List<Match> parseToday(JSONObject wrapper,Set<String> clubCups,Set<String> nationalCups)throws Exception{
+        return parseDayFixtures(wrapper,clubCups,nationalCups,true);
+    }
+
+    private static List<Match> parseAllToday(JSONObject wrapper)throws Exception{
+        return parseDayFixtures(wrapper,null,null,false);
+    }
+
+    private static List<Match> parseDayFixtures(JSONObject wrapper,Set<String> clubCups,Set<String> nationalCups,boolean filterCompetitions)throws Exception{
         JSONArray data=apiData(wrapper);List<Match> result=new ArrayList<>();long cutoff=System.currentTimeMillis()-7_200_000L;
         for(int i=0;i<data.length();i++){
             JSONObject f=data.getJSONObject(i);String competition=competitionName(f),country=f.optString("countryName");
-            if(!competitionSelected(competition,country,clubCups,nationalCups))continue;
+            if(filterCompetitions&&!competitionSelected(competition,country,clubCups,nationalCups))continue;
             long kickoff=parseKickoff(f);if(kickoff<cutoff)continue;
             result.add(new Match(matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),competition,kickoff,false));
         }
