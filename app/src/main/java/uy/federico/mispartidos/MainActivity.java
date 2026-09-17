@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
-        BackgroundSyncScheduler.schedule(this);
+        BackgroundSyncScheduler.schedule(this);DailySummaryScheduler.schedule(this);
         buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent()); syncNow(false);
     }
 
@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
         if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
+        List<Match>results=store.recentResults();if(!results.isEmpty()){addSectionTitle("Resultados recientes · mis equipos");list.addView(resultsTable(results));}
     }
 
     private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
@@ -93,6 +94,13 @@ public class MainActivity extends Activity {
         table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
         SimpleDateFormat hourFormat=new SimpleDateFormat("HH:mm",new Locale("es","UY"));
         for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false));if(i<matches.size()-1)table.addView(tableDivider());}
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
+    }
+
+    private View resultsTable(List<Match> matches){
+        LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
+        table.addView(todayRow("DÍA","PARTIDO","RESULTADO",true));table.addView(tableDivider());SimpleDateFormat day=new SimpleDateFormat("EEE d",new Locale("es","UY"));
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false));if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
@@ -125,7 +133,8 @@ public class MainActivity extends Activity {
         Set<String> clubs,clubCups,nations,nationCups;
         ConfigDraft(AppStore s){clubs=new LinkedHashSet<>(s.selectedTeams());clubCups=new LinkedHashSet<>(s.selectedClubCompetitions());nations=new LinkedHashSet<>(s.selectedNationalTeams());nationCups=new LinkedHashSet<>(s.selectedNationalCompetitions());}
     }
-    private void showSettings(){String[]items={"Tiempo general de aviso · "+noticeLabel(),"Avisos por equipo","Estado de sincronización","Conexión API"};new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items,(d,pos)->{if(pos==0)chooseNotice();else if(pos==1)chooseTeamNotice();else if(pos==2)showSyncStatus();else showApiConnection();}).setNegativeButton("Cerrar",null).show();}
+    private void showSettings(){String summary=store.dailySummaryEnabled()?String.format(Locale.getDefault(),"Activado · %02d:%02d",store.dailySummaryHour(),store.dailySummaryMinute()):"Desactivado";String[]items={"Tiempo general de aviso · "+noticeLabel(),"Avisos por equipo","Resumen diario · "+summary,"Estado de sincronización","Conexión API"};new AlertDialog.Builder(this).setTitle("Ajustes").setItems(items,(d,pos)->{if(pos==0)chooseNotice();else if(pos==1)chooseTeamNotice();else if(pos==2)chooseDailySummary();else if(pos==3)showSyncStatus();else showApiConnection();}).setNegativeButton("Cerrar",null).show();}
+    private void chooseDailySummary(){String[]items={"Activar y elegir horario","Desactivar"};new AlertDialog.Builder(this).setTitle("Resumen de partidos del día").setItems(items,(d,pos)->{if(pos==1){store.saveDailySummaryEnabled(false);DailySummaryScheduler.schedule(this);Toast.makeText(this,"Resumen diario desactivado",Toast.LENGTH_SHORT).show();}else new TimePickerDialog(this,(view,hour,minute)->{store.saveDailySummaryEnabled(true);store.saveDailySummaryTime(hour,minute);DailySummaryScheduler.schedule(this);Toast.makeText(this,"Resumen diario activado",Toast.LENGTH_SHORT).show();},store.dailySummaryHour(),store.dailySummaryMinute(),true).show();}).setNegativeButton("Cancelar",null).show();}
     private String noticeLabel(){int m=store.noticeMinutes();return m<60?m+" min antes":(m/60)+((m==60)?" hora antes":" horas antes");}
 
     private void openConfiguration(){showConfigurationHub(new ConfigDraft(store));}
