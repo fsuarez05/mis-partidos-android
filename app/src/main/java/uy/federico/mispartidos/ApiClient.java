@@ -261,10 +261,13 @@ class ApiClient {
     }
 
     private static int[] scoreOf(JSONObject f){
-        int home=f.optInt("homeScore",-1),away=f.optInt("awayScore",-1);JSONObject score=f.optJSONObject("score");
+        int home=nullableInt(f,"homeTeamFtScore");if(home<0)home=nullableInt(f,"homeTeamScore");if(home<0)home=nullableInt(f,"homeScore");
+        int away=nullableInt(f,"awayTeamFtScore");if(away<0)away=nullableInt(f,"awayTeamScore");if(away<0)away=nullableInt(f,"awayScore");JSONObject score=f.optJSONObject("score");
         if(score!=null){if(home<0)home=score.optInt("home",-1);if(away<0)away=score.optInt("away",-1);JSONObject full=score.optJSONObject("fullTime");if(full!=null){if(home<0)home=full.optInt("home",-1);if(away<0)away=full.optInt("away",-1);}}
         return new int[]{home,away};
     }
+
+    private static int nullableInt(JSONObject value,String key){if(!value.has(key)||value.isNull(key))return-1;Object raw=value.opt(key);if(raw instanceof Number)return((Number)raw).intValue();try{return Integer.parseInt(String.valueOf(raw));}catch(Exception ignored){return-1;}}
 
     private static List<Match> dedupeMatches(List<Match> values){Map<Long,Match> unique=new LinkedHashMap<>();for(Match m:values)unique.put(m.id,m);return new ArrayList<>(unique.values());}
 
