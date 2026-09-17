@@ -29,7 +29,7 @@ jobs:
           MISPARTIDOS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           MISPARTIDOS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       - name: Compilar APK
-        run: gradle :app:assembleDebug --stacktrace
+        run: gradle :app:assembleRelease --stacktrace
         env:
           MISPARTIDOS_KEYSTORE_PATH: ${{ runner.temp }}/mis-partidos-release.jks
           MISPARTIDOS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -38,6 +38,6 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: MisPartidos-v0.9.22-estable
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MisPartidos-v0.9.24-release
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
