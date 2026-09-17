@@ -101,6 +101,8 @@ public class AppStore {
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
     long nextBackgroundSync(){return prefs.getLong("next_background_sync",0);}
     void saveNextBackgroundSync(long value){prefs.edit().putLong("next_background_sync",value).apply();}
+    Set<String> scheduledAlarmIds(){Set<String>s=prefs.getStringSet("scheduled_alarm_ids",null);return s==null?new HashSet<>():new HashSet<>(s);}
+    void saveScheduledAlarmIds(Set<String> ids){prefs.edit().putStringSet("scheduled_alarm_ids",new HashSet<>(ids)).apply();}
     String proxyUrl(){return prefs.getString("proxy_url","").trim();}
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
@@ -115,7 +117,7 @@ public class AppStore {
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
     List<Match>upcoming(){
-        long now=System.currentTimeMillis();List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now)r.add(m);
+        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now&&favorites.contains(m.team))r.add(m);
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
     List<Match>todayByCompetitions(){

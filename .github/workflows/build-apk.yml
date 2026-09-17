@@ -38,6 +38,6 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: MisPartidos-v0.9.16-estable
+          name: MisPartidos-v0.9.17-estable
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

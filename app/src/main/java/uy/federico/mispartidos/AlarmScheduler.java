@@ -4,6 +4,8 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import java.util.HashSet;
+import java.util.Set;
 
 public class AlarmScheduler {
     static void schedule(Context context, Match match, int minutesBefore) {
@@ -29,6 +31,30 @@ public class AlarmScheduler {
 
     static void scheduleAll(Context context) {
         AppStore store = new AppStore(context);
-        for (Match match : store.upcoming()) schedule(context, match, store.noticeMinutes());
+        // Cancela primero todas las alarmas conocidas. Esto evita que un equipo
+        // eliminado siga notificando o que sobreviva el horario anterior.
+        Set<String> oldIds = new HashSet<>(store.scheduledAlarmIds());
+        for (Match match : store.apiFavoriteMatches()) oldIds.add(String.valueOf(match.id));
+        for (String value : oldIds) {
+            try { cancel(context, Long.parseLong(value)); } catch (NumberFormatException ignored) {}
+        }
+        Set<String> currentIds = new HashSet<>();
+        for (Match match : store.upcoming()) {
+            schedule(context, match, store.noticeMinutes());
+            currentIds.add(String.valueOf(match.id));
+        }
+        store.saveScheduledAlarmIds(currentIds);
+    }
+
+    private static void cancel(Context context, long matchId) {
+        Intent intent = new Intent(context, NotificationReceiver.class);
+        PendingIntent pending = PendingIntent.getBroadcast(context,
+                (int) (matchId % Integer.MAX_VALUE), intent,
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (pending != null) {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pending);
+            pending.cancel();
+        }
     }
 }
