@@ -290,7 +290,10 @@ function finalizarRonda(){
   limpiarMensaje("mensajeRonda"); const r=rondaActual(), total=jugadores.reduce((s,j)=>s+j.ganadas,0);
   if(total>r.cartas){mostrarMensaje("mensajeRonda",`Se asignaron ${total} manos. No pueden superar las ${r.cartas} cartas.`,"error");return;}
   const empatadas=r.cartas-total;
-  if(empatadas>0&&!confirm(`Quedaron ${empatadas} ${empatadas===1?"mano empatada":"manos empatadas"} y no fueron ganadas por ningún jugador. ¿Confirmar?`))return;
+  const detalleEmpates=empatadas===1
+    ?"Quedó 1 mano empatada y no fue ganada por ningún jugador."
+    :`Quedaron ${empatadas} manos empatadas y no fueron ganadas por ningún jugador.`;
+  if(empatadas>0&&!confirm(`${detalleEmpates}\n\n¿Querés finalizar la ronda igualmente?`))return;
   historial.push({numero:indiceRonda+1,cartas:r.cartas,vista:r.vista,empatadas,repartidor:obtenerRepartidor(indiceRonda+1),
     jugadores:jugadores.map(j=>({id:j.id,nombre:j.nombre,prediccion:j.prediccion,ganadas:j.ganadas,puntos:calcularPuntos(j)}))});
   recalcularTotales(); indiceRonda++;
@@ -327,7 +330,10 @@ function guardarEdicionRonda(indice){
   if(sp===r.cartas){mostrarMensaje("mensajeEdicion",`Las predicciones no pueden sumar exactamente ${r.cartas}.`,"error");return;}
   if(sg>r.cartas){mostrarMensaje("mensajeEdicion",`Las manos ganadas no pueden superar ${r.cartas}.`,"error");return;}
   const empatadas=r.cartas-sg;
-  if(empatadas>0&&!confirm(`Quedaron ${empatadas} ${empatadas===1?"mano empatada":"manos empatadas"}. ¿Confirmar la corrección?`))return;
+  const detalleEmpates=empatadas===1
+    ?"Quedó 1 mano empatada y no fue ganada por ningún jugador."
+    :`Quedaron ${empatadas} manos empatadas y no fueron ganadas por ningún jugador.`;
+  if(empatadas>0&&!confirm(`${detalleEmpates}\n\n¿Querés guardar la corrección igualmente?`))return;
   r.empatadas=empatadas;
   r.jugadores=nuevos.map(x=>({...x,puntos:x.ganadas*3+(x.prediccion===x.ganadas?10:0)}));
   recalcularTotales(); actualizarHistorial(); if(indiceRonda<secuenciaRondas.length){prediccionesConfirmadas?dibujarResultados():dibujarPredicciones();} guardarPartida();
