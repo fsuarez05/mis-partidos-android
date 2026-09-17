@@ -31,13 +31,15 @@ class ApiClient {
     interface TeamSearchCallback { void done(List<TeamOption> teams, String error); }
     interface LeagueCallback { void done(List<LeagueOption> leagues, String error); }
     static class TeamOption {
-        final String id,name,country;
-        TeamOption(String id,String name,String country){this.id=id;this.name=name;this.country=country;}
+        final String id,name,country;final int importance;
+        TeamOption(String id,String name,String country){this(id,name,country,0);}
+        TeamOption(String id,String name,String country,int importance){this.id=id;this.name=name;this.country=country;this.importance=importance;}
         String label(){return country==null||country.isEmpty()?name:name+" · "+country;}
     }
     static class LeagueOption {
-        final String id,name,season;
-        LeagueOption(String id,String name,String season){this.id=id;this.name=name;this.season=season;}
+        final String id,name,season;final int popularity;
+        LeagueOption(String id,String name,String season){this(id,name,season,0);}
+        LeagueOption(String id,String name,String season,int popularity){this.id=id;this.name=name;this.season=season;this.popularity=popularity;}
         String label(){return season==null||season.isEmpty()?name:name+" · "+season;}
     }
     private static String proxyUrl="",proxyToken="";
@@ -119,7 +121,7 @@ class ApiClient {
                 for(int i=0;i<data.length();i++){
                     JSONObject item=data.optJSONObject(i);if(item==null)continue;
                     String id=item.optString("id"),name=item.optString("name"),country=item.isNull("country")?"":item.optString("country");
-                    if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));
+                    if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country,teamImportance(item)));
                 }
             }catch(Exception e){error=e.getMessage();}
             String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));
@@ -129,27 +131,31 @@ class ApiClient {
     static void countryLeagues(Context context,String country,LeagueCallback callback){
         prepare(context);new Thread(()->{List<LeagueOption>result=new ArrayList<>();String error=null;try{
             JSONArray data=apiData(request("countryLeagues",params("country",apiCountryName(country))));
-            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),season=x.optString("season");if(!id.isEmpty()&&!name.isEmpty())result.add(new LeagueOption(id,name,season));}
-            List<LeagueOption>unique=dedupeLeagues(result);result.clear();result.addAll(unique);result.sort((a,b)->a.name.compareToIgnoreCase(b.name));saveLeaguesCache(context,country,result);
+            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),season=x.optString("season");if(!id.isEmpty()&&!name.isEmpty())result.add(new LeagueOption(id,name,season,x.optInt("popularity",0)));}
+            List<LeagueOption>unique=dedupeLeagues(result);result.clear();result.addAll(unique);sortLeagues(result);saveLeaguesCache(context,country,result);
         }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
     }
 
     static void leagueTeams(Context context,String leagueId,TeamSearchCallback callback){
         prepare(context);new Thread(()->{List<TeamOption>result=new ArrayList<>();String error=null;try{
             JSONArray data=apiData(request("leagueTeams",params("league",leagueId,"limit","100")));
-            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),country=x.isNull("country")?"":x.optString("country");if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country));}
-            List<TeamOption>unique=dedupeTeams(result);result.clear();result.addAll(unique);result.sort((a,b)->a.name.compareToIgnoreCase(b.name));saveTeamsCache(context,leagueId,result);
+            for(int i=0;i<data.length();i++){JSONObject x=data.optJSONObject(i);if(x==null)continue;String id=x.optString("id"),name=x.optString("name"),country=x.isNull("country")?"":x.optString("country");if(!id.isEmpty()&&!name.isEmpty())result.add(new TeamOption(id,name,country,teamImportance(x)));}
+            List<TeamOption>unique=dedupeTeams(result);result.clear();result.addAll(unique);sortTeams(result);saveTeamsCache(context,leagueId,result);
         }catch(Exception e){error=e.getMessage();}String finalError=error;new Handler(Looper.getMainLooper()).post(()->callback.done(result,finalError));}).start();
     }
 
     private static void prepare(Context context){AppStore s=new AppStore(context);proxyUrl=s.proxyUrl();proxyToken=s.proxyToken();}
-    static List<LeagueOption> cachedCountryLeagues(Context context,String country){List<LeagueOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("leagues_"+normalize(country),"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new LeagueOption(x.getString("id"),x.getString("name"),x.optString("season")));}}catch(Exception ignored){}return dedupeLeagues(r);}
-    static List<TeamOption> cachedLeagueTeams(Context context,String leagueId){List<TeamOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("teams_"+leagueId,"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new TeamOption(x.getString("id"),x.getString("name"),x.optString("country")));}}catch(Exception ignored){}return dedupeTeams(r);}
-    private static void saveLeaguesCache(Context context,String country,List<LeagueOption>values){try{JSONArray a=new JSONArray();for(LeagueOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("season",x.season);a.put(o);}catalogPrefs(context).edit().putString("leagues_"+normalize(country),a.toString()).apply();}catch(Exception ignored){}}
-    private static void saveTeamsCache(Context context,String leagueId,List<TeamOption>values){try{JSONArray a=new JSONArray();for(TeamOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("country",x.country);a.put(o);}catalogPrefs(context).edit().putString("teams_"+leagueId,a.toString()).apply();}catch(Exception ignored){}}
+    static List<LeagueOption> cachedCountryLeagues(Context context,String country){List<LeagueOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("leagues_"+normalize(country),"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new LeagueOption(x.getString("id"),x.getString("name"),x.optString("season"),x.optInt("popularity",0)));}}catch(Exception ignored){}r=dedupeLeagues(r);sortLeagues(r);return r;}
+    static List<TeamOption> cachedLeagueTeams(Context context,String leagueId){List<TeamOption>r=new ArrayList<>();try{JSONArray a=new JSONArray(catalogPrefs(context).getString("teams_"+leagueId,"[]"));for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);r.add(new TeamOption(x.getString("id"),x.getString("name"),x.optString("country"),x.optInt("importance",0)));}}catch(Exception ignored){}r=dedupeTeams(r);sortTeams(r);return r;}
+    private static void saveLeaguesCache(Context context,String country,List<LeagueOption>values){try{JSONArray a=new JSONArray();for(LeagueOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("season",x.season);o.put("popularity",x.popularity);a.put(o);}catalogPrefs(context).edit().putString("leagues_"+normalize(country),a.toString()).apply();}catch(Exception ignored){}}
+    private static void saveTeamsCache(Context context,String leagueId,List<TeamOption>values){try{JSONArray a=new JSONArray();for(TeamOption x:values){JSONObject o=new JSONObject();o.put("id",x.id);o.put("name",x.name);o.put("country",x.country);o.put("importance",x.importance);a.put(o);}catalogPrefs(context).edit().putString("teams_"+leagueId,a.toString()).apply();}catch(Exception ignored){}}
     private static SharedPreferences catalogPrefs(Context context){return context.getSharedPreferences("goal_catalog",Context.MODE_PRIVATE);}
-    private static List<TeamOption> dedupeTeams(List<TeamOption>values){Map<String,TeamOption>unique=new LinkedHashMap<>();for(TeamOption x:values){String key=normalize(x.name);if(!unique.containsKey(key))unique.put(key,x);}return new ArrayList<>(unique.values());}
+    private static List<TeamOption> dedupeTeams(List<TeamOption>values){Map<String,TeamOption>unique=new LinkedHashMap<>();for(TeamOption x:values){String key=normalize(x.name),oldKey=key;TeamOption old=unique.get(oldKey);if(old==null||x.importance>old.importance)unique.put(key,x);}return new ArrayList<>(unique.values());}
     private static List<LeagueOption> dedupeLeagues(List<LeagueOption>values){Map<String,LeagueOption>unique=new LinkedHashMap<>();for(LeagueOption x:values){String key=normalize(x.name),season=x.season==null?"":x.season;LeagueOption old=unique.get(key);if(old==null||season.compareTo(old.season==null?"":old.season)>0)unique.put(key,x);}return new ArrayList<>(unique.values());}
+    private static int teamImportance(JSONObject x){JSONObject count=x.optJSONObject("_count");return count==null?0:count.optInt("homeFixtures",0)+count.optInt("awayFixtures",0)+count.optInt("players",0);}
+    private static void sortTeams(List<TeamOption>values){values.sort((a,b)->{int c=Integer.compare(b.importance,a.importance);return c!=0?c:a.name.compareToIgnoreCase(b.name);});}
+    private static void sortLeagues(List<LeagueOption>values){values.sort((a,b)->{int c=Integer.compare(b.popularity,a.popularity);if(c!=0)return c;c=Integer.compare(leagueRank(a.name),leagueRank(b.name));return c!=0?c:a.name.compareToIgnoreCase(b.name);});}
+    private static int leagueRank(String name){String n=normalize(name);if(n.contains("premier league")||n.equals("la liga")||n.equals("serie a")||n.equals("bundesliga")||n.equals("ligue 1")||n.contains("primeira liga")||n.contains("primera division"))return 0;if(n.contains("segunda")||n.contains("ligue 2")||n.contains("serie b")||n.contains("championship")||n.contains("2 bundesliga"))return 1;return 2;}
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
         JSONObject fallback=null;String wanted=normalize(apiSearchName(selectedName));
