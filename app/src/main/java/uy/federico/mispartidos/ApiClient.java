@@ -198,10 +198,11 @@ class ApiClient {
     }
 
     private static List<Match> reconcileTodayFavorites(AppStore store,List<Match> today,Map<Long,Match> favorites){
-        List<Match> remaining=new ArrayList<>();List<String> selected=new ArrayList<>(store.selectedTeams());selected.addAll(store.selectedNationalTeams());
+        List<Match> remaining=new ArrayList<>();Set<String> national=store.selectedNationalTeams();List<String> selected=new ArrayList<>(store.selectedTeams());selected.addAll(national);
         for(Match match:today){
             boolean promoted=false;
             for(String team:selected){
+                if(national.contains(team)&&isYouthOrWomenFixture(match))continue;
                 boolean home=sameTeam(team,match.team),away=sameTeam(team,match.opponent);
                 if(!home&&!away)continue;
                 String opponent=home?match.opponent:match.team;
@@ -211,6 +212,13 @@ class ApiClient {
             if(!promoted)remaining.add(match);
         }
         return remaining;
+    }
+
+    private static boolean isYouthOrWomenFixture(Match match){
+        String value=normalize(match.team+" "+match.opponent+" "+match.competition);
+        return value.matches(".*\\b(u|sub)[ -]?(15|16|17|18|19|20|21|22|23)\\b.*")
+                ||value.contains("youth")||value.contains("juvenil")||value.contains("women")
+                ||value.contains("woman")||value.contains("femenin")||value.contains("feminin");
     }
 
     private static void removeFavoriteForTeam(Map<Long,Match> favorites,String team){

@@ -99,12 +99,12 @@ public class MainActivity extends Activity {
     private View matchCard(Match m) {
         LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.HORIZONTAL); card.setPadding(dp(14),dp(14),dp(14),dp(14));
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(); bg.setColor(Color.WHITE); bg.setCornerRadius(dp(14)); bg.setStroke(dp(1), Color.rgb(226,232,240)); card.setBackground(bg);
-        TextView badge=text(teamInitials(m.team),14,Color.WHITE,true);badge.setGravity(Gravity.CENTER);android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);badgeBg.setColor(teamColor(m.team));badge.setBackground(badgeBg);
+        TextView badge=text(m.opponent.isEmpty()?"★":teamInitials(m.team),14,Color.WHITE,true);badge.setGravity(Gravity.CENTER);android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);badgeBg.setColor(teamColor(m.team));badge.setBackground(badgeBg);
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),0,0,0);
         TextView team = text(m.team,18,Color.rgb(15,23,42),true); TextView versus = text(m.team + "  vs.  " + m.opponent,16,Color.rgb(30,41,59),false);
         TextView date = text(dateFormat.format(new Date(m.kickoff)),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
-        content.addView(team); content.addView(versus); content.addView(date); content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));
+        content.addView(team); if(!m.opponent.isEmpty())content.addView(versus); content.addView(date); content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); card.setLayoutParams(lp); return card;
     }
 
@@ -233,7 +233,7 @@ public class MainActivity extends Activity {
     }
 
     private void showCompetitionSubset(String title,String[]all,Set<String>subset,Set<String>suggested,Set<String>chosen,boolean selections,SelectionDone done,Runnable back){
-        String[]values=subset.toArray(new String[0]),labels=new String[values.length];boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++){labels[i]=AppStore.shortName(values[i]);checked[i]=chosen.contains(values[i]);}
+        String[]values=subset.toArray(new String[0]),labels=new String[values.length];boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++){labels[i]=AppStore.shortName(values[i])+(selections?" · Mayores masculino":"");checked[i]=chosen.contains(values[i]);}
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Seleccionar competiciones").setMultiChoiceItems(labels,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->showCompetitionMenu(title,all,suggested,chosen,selections,done,back)).setNegativeButton("Volver",(d,w)->showCompetitionMenu(title,all,suggested,chosen,selections,done,back)).create();dialog.setOnCancelListener(d->showCompetitionMenu(title,all,suggested,chosen,selections,done,back));dialog.show();
     }
 
@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
     private void chooseNoticeForTeam(String team){String[]labels={"Usar ajuste general","15 minutos antes","30 minutos antes","1 hora antes","2 horas antes"};int[]values={-1,15,30,60,120};new AlertDialog.Builder(this).setTitle(team).setSingleChoiceItems(labels,-1,null).setPositiveButton("Guardar",(d,w)->{int pos=((AlertDialog)d).getListView().getCheckedItemPosition();if(pos>=0){store.saveNoticeMinutesFor(team,values[pos]);AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Aviso guardado",Toast.LENGTH_SHORT).show();}}).setNegativeButton("Cancelar",null).show();}
     private String noticeLabel(int m){return m<60?m+" min antes":(m/60)+(m==60?" hora antes":" horas antes");}
     private void showSyncStatus(){String configured=ApiClient.configured(this)?"Configurada":"Sin configurar";String message="Conexión API: "+configured+"\n"+lastSyncText()+nextSyncText()+"\nEquipos consultados: "+(store.selectedTeams().size()+store.selectedNationalTeams().size())+"\nPartidos guardados: "+store.upcoming().size()+"\n\nLa actualización automática necesita conexión y Android puede postergarla para ahorrar batería.";new AlertDialog.Builder(this).setTitle("Estado de sincronización").setMessage(message).setPositiveButton("Actualizar ahora",(d,w)->syncNow(true)).setNegativeButton("Cerrar",null).show();}
-    private void showOpenedMatch(Intent intent){if(intent==null||!intent.getBooleanExtra("open_match",false))return;String team=intent.getStringExtra("team"),opponent=intent.getStringExtra("opponent");long kickoff=intent.getLongExtra("kickoff",0);intent.removeExtra("open_match");new AlertDialog.Builder(this).setTitle("⚽ "+team).setMessage(team+" vs. "+opponent+"\n"+dateFormat.format(new Date(kickoff))).setPositiveButton("Cerrar",null).show();}
+    private void showOpenedMatch(Intent intent){if(intent==null||!intent.getBooleanExtra("open_match",false))return;String team=intent.getStringExtra("team"),opponent=intent.getStringExtra("opponent");long kickoff=intent.getLongExtra("kickoff",0);intent.removeExtra("open_match");String match=opponent==null||opponent.isEmpty()?team:team+" vs. "+opponent;new AlertDialog.Builder(this).setTitle("⚽ "+match).setMessage(dateFormat.format(new Date(kickoff))).setPositiveButton("Cerrar",null).show();}
     private String teamInitials(String name){String[]parts=name.trim().split("\\s+");StringBuilder value=new StringBuilder();for(String part:parts)if(!part.isEmpty()&&value.length()<2)value.append(Character.toUpperCase(part.charAt(0)));return value.length()==0?"⚽":value.toString();}
     private int teamColor(String name){int[]colors={Color.rgb(30,64,175),Color.rgb(180,83,9),Color.rgb(22,101,52),Color.rgb(153,27,27),Color.rgb(88,28,135)};return colors[Math.abs(name.hashCode()%colors.length)];}
 

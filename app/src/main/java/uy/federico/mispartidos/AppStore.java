@@ -119,7 +119,13 @@ public class AppStore {
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
     List<Match>upcoming(){
-        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now&&favorites.contains(m.team))r.add(m);
+        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff>now)r.add(m);
+        java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
+        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff>now&&favorites.contains(m.team)){
+            String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;String key=(m.kickoff/60_000L)+"|"+pair;
+            Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.team+" vs. "+old.opponent,"",old.competition,old.kickoff,false));
+        }
+        r.addAll(unique.values());
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
     List<Match>todayByCompetitions(){

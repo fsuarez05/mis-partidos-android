@@ -26,9 +26,12 @@ public class NotificationReceiver extends BroadcastReceiver {
         String when = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(kickoff));
         boolean insideWindow = intent.getBooleanExtra("inside_window", false);
         long remaining = Math.max(1, (kickoff-System.currentTimeMillis()+59_999)/60_000);
+        boolean sharedMatch=opponent==null||opponent.isEmpty();
+        String title=sharedMatch?(insideWindow?"⚽ Partido en "+remaining+" min":"⚽ Partido en "+minutes+" minutos"):(insideWindow ? "⚽ " + team + " juega en " + remaining + " min" : "⚽ En " + minutes + " minutos juega " + team);
+        String detail=sharedMatch?team+" · "+when:team + " vs. " + opponent + " · " + when;
         android.app.Notification n = new android.app.Notification.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_notification).setContentTitle(insideWindow ? "⚽ " + team + " juega en " + remaining + " min" : "⚽ En " + minutes + " minutos juega " + team)
-                .setContentText(team + " vs. " + opponent + " · " + when).setAutoCancel(true)
+                .setSmallIcon(R.drawable.ic_notification).setContentTitle(title)
+                .setContentText(detail).setAutoCancel(true)
                 .setContentIntent(content).build();
         nm.notify((int) (kickoff % Integer.MAX_VALUE), n);
     }
