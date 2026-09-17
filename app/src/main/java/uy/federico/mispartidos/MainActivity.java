@@ -50,8 +50,7 @@ public class MainActivity extends Activity {
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout actions = new LinearLayout(this); actions.setPadding(dp(10),dp(8),dp(10),dp(6));
         Button teams = button("⚙️ Configuración"); teams.setOnClickListener(v -> showSettings());
-        Button add = button("＋ Partido"); add.setOnClickListener(v -> addManualMatch());
-        actions.addView(teams, weight()); actions.addView(add, weight()); root.addView(actions);
+        actions.addView(teams,new LinearLayout.LayoutParams(-1,-2));root.addView(actions);
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
         TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
@@ -157,14 +156,16 @@ public class MainActivity extends Activity {
 
     private void loadCountryLeagues(String title,String[]all,String region,String country,Set<String>chosen,SelectionDone done,Runnable back){
         AlertDialog loading=new AlertDialog.Builder(this).setTitle(country).setMessage("Cargando divisionales…").setCancelable(false).create();loading.show();
-        List<ApiClient.LeagueOption>cached=ApiClient.cachedCountryLeagues(this,country);if(!cached.isEmpty()){loading.dismiss();showLeagueChoices(title,all,region,country,cached,chosen,done,back);ApiClient.countryLeagues(this,country,(fresh,error)->{});return;}
-        ApiClient.countryLeagues(this,country,(leagues,error)->{loading.dismiss();if(error!=null){Toast.makeText(this,error,Toast.LENGTH_LONG).show();chooseClubCountry(title,all,region,chosen,done,back);return;}showLeagueChoices(title,all,region,country,leagues,chosen,done,back);});
+        List<ApiClient.LeagueOption>cached=divisionLeagues(ApiClient.cachedCountryLeagues(this,country));if(!cached.isEmpty()){loading.dismiss();showLeagueChoices(title,all,region,country,cached,chosen,done,back);ApiClient.countryLeagues(this,country,(fresh,error)->{});return;}
+        ApiClient.countryLeagues(this,country,(leagues,error)->{loading.dismiss();if(error!=null){Toast.makeText(this,error,Toast.LENGTH_LONG).show();chooseClubCountry(title,all,region,chosen,done,back);return;}showLeagueChoices(title,all,region,country,divisionLeagues(leagues),chosen,done,back);});
     }
 
     private void showLeagueChoices(String title,String[]all,String region,String country,List<ApiClient.LeagueOption>leagues,Set<String>chosen,SelectionDone done,Runnable back){
         String[]labels=new String[leagues.size()];for(int i=0;i<leagues.size();i++)labels[i]=leagues.get(i).label();
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(country+" · Elegir divisional").setItems(labels,(d,pos)->loadLeagueTeams(title,all,region,country,leagues,leagues.get(pos),chosen,done,back)).setNegativeButton("Volver",(d,w)->chooseClubCountry(title,all,region,chosen,done,back)).create();dialog.setOnCancelListener(d->chooseClubCountry(title,all,region,chosen,done,back));dialog.show();
     }
+
+    private List<ApiClient.LeagueOption>divisionLeagues(List<ApiClient.LeagueOption>values){List<ApiClient.LeagueOption>result=new ArrayList<>();for(ApiClient.LeagueOption x:values){String n=x.name.toLowerCase(Locale.ROOT);if(n.contains("cup")||n.contains("copa")||n.contains("coppa")||n.contains("pokal")||n.contains("supercopa")||n.contains("super cup")||n.contains("trophy")||n.contains("shield")||n.contains("libertadores")||n.contains("sudamericana")||n.contains("champions")||n.contains("europa league")||n.contains("conference league"))continue;result.add(x);}return result;}
 
     private void loadLeagueTeams(String title,String[]all,String region,String country,List<ApiClient.LeagueOption>leagues,ApiClient.LeagueOption league,Set<String>chosen,SelectionDone done,Runnable back){
         AlertDialog loading=new AlertDialog.Builder(this).setTitle(league.name).setMessage("Cargando equipos…").setCancelable(false).create();loading.show();
@@ -191,14 +192,30 @@ public class MainActivity extends Activity {
     }
 
     private void showCompetitionMenu(String title,String[]all,Set<String>suggested,Set<String>chosen,boolean selections,SelectionDone done,Runnable back){
-        String[]menu={"★ Sugeridas ("+suggested.size()+")","🏆 Continentales","🌎 América del Sur","🌍 Europa","🌐 Mundo"};
+        String[]menu=selections?new String[]{"★ Sugeridas ("+suggested.size()+")","🏆 Continentales","🌎 América del Sur","🌍 Europa","🌐 Mundo"}:new String[]{"★ Sugeridas ("+suggested.size()+")","🏆 Continentales","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía","🌐 Mundo"};
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title+" · "+chosen.size()+" elegidas").setItems(menu,(d,pos)->{
             if(pos==0)showCompetitionSubset(title,all,suggested,suggested,chosen,selections,done,back);
             else if(pos==1)showCompetitionSubset(title,all,filter(all,"CONMEBOL","UEFA"),suggested,chosen,selections,done,back);
-            else if(pos==2){if(selections)showCompetitionSubset(title,all,filter(all,"América del Sur"),suggested,chosen,true,done,back);else chooseCountry(title,all,"América del Sur",suggested,chosen,done,back);}
-            else if(pos==3){if(selections)showCompetitionSubset(title,all,filter(all,"Europa"),suggested,chosen,true,done,back);else chooseCountry(title,all,"Europa",suggested,chosen,done,back);}
-            else showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,selections,done,back);
+            else if(selections&&pos==2)showCompetitionSubset(title,all,filter(all,"América del Sur"),suggested,chosen,true,done,back);
+            else if(selections&&pos==3)showCompetitionSubset(title,all,filter(all,"Europa"),suggested,chosen,true,done,back);
+            else if(selections)showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,true,done,back);
+            else if(pos==8)showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,false,done,back);
+            else{String[]regions={"América del Sur","Europa","Norteamérica","África","Asia","Oceanía"};chooseApiCompetitionCountry(title,all,regions[pos-2],suggested,chosen,done,back);}
         }).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+    }
+
+    private void chooseApiCompetitionCountry(String title,String[]all,String continent,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
+        String[]countries=clubCountries(continent);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(continent+" · Seleccionar país").setItems(countries,(d,pos)->loadApiCompetitions(title,all,continent,countries[pos],suggested,chosen,done,back)).setNegativeButton("Volver",(d,w)->showCompetitionMenu(title,all,suggested,chosen,false,done,back)).create();dialog.setOnCancelListener(d->showCompetitionMenu(title,all,suggested,chosen,false,done,back));dialog.show();
+    }
+
+    private void loadApiCompetitions(String title,String[]all,String continent,String country,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
+        List<ApiClient.LeagueOption>cached=ApiClient.cachedCountryLeagues(this,country);if(!cached.isEmpty()){showApiCompetitionSubset(title,all,continent,country,cached,suggested,chosen,done,back);ApiClient.countryLeagues(this,country,(fresh,error)->{});return;}
+        AlertDialog loading=new AlertDialog.Builder(this).setTitle(country).setMessage("Cargando campeonatos…").setCancelable(false).create();loading.show();ApiClient.countryLeagues(this,country,(values,error)->{loading.dismiss();if(error!=null){Toast.makeText(this,error,Toast.LENGTH_LONG).show();chooseApiCompetitionCountry(title,all,continent,suggested,chosen,done,back);return;}showApiCompetitionSubset(title,all,continent,country,values,suggested,chosen,done,back);});
+    }
+
+    private void showApiCompetitionSubset(String title,String[]all,String continent,String country,List<ApiClient.LeagueOption>leagues,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
+        String[]labels=new String[leagues.size()],values=new String[leagues.size()];boolean[]checked=new boolean[leagues.size()];for(int i=0;i<leagues.size();i++){labels[i]=leagues.get(i).label();values[i]=continent+" › "+country+" › "+leagues.get(i).name;checked[i]=chosen.contains(values[i]);}
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(country+" · Campeonatos").setMultiChoiceItems(labels,checked,(d,pos,on)->{if(on){chosen.add(values[pos]);store.saveDynamicCompetition(values[pos]);}else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->chooseApiCompetitionCountry(title,all,continent,suggested,chosen,done,back)).setNegativeButton("Volver",(d,w)->chooseApiCompetitionCountry(title,all,continent,suggested,chosen,done,back)).create();dialog.setOnCancelListener(d->chooseApiCompetitionCountry(title,all,continent,suggested,chosen,done,back));dialog.show();
     }
 
     private void chooseCountry(String title,String[]all,String continent,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
