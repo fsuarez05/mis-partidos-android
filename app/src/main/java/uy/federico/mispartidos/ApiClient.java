@@ -86,7 +86,7 @@ class ApiClient {
                     if(!pool.awaitTermination(90,TimeUnit.SECONDS))pool.shutdownNow();
                 }
 
-                if(favorites.isEmpty()&&!failures.isEmpty())favorites=toMap(store.apiFavoriteMatches());
+                if(favorites.isEmpty()&&!failures.isEmpty())favorites.putAll(previousFavorites);
                 if(today.isEmpty()&&failures.contains("partidos de hoy"))today=store.apiTodayMatches();
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
