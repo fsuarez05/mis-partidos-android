@@ -98,14 +98,14 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
         table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
         SimpleDateFormat hourFormat=new SimpleDateFormat("HH:mm",new Locale("es","UY"));
-        for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false));if(i<matches.size()-1)table.addView(tableDivider());}
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false);row.setOnClickListener(v->searchMatchOnGoogle(m));row.setContentDescription("Buscar "+m.team+" contra "+m.opponent+" en Google");table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
     private View resultsTable(List<Match> matches){
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
         table.addView(todayRow("DÍA","PARTIDO","RESULTADO",true));table.addView(tableDivider());SimpleDateFormat day=new SimpleDateFormat("EEE d",new Locale("es","UY"));
-        for(int i=0;i<matches.size();i++){Match m=matches.get(i);table.addView(todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false));if(i<matches.size()-1)table.addView(tableDivider());}
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false);row.setOnClickListener(v->searchMatchOnGoogle(m));row.setContentDescription("Buscar resultado de "+m.team+" contra "+m.opponent+" en Google");table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
