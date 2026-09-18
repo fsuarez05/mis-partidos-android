@@ -29,6 +29,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.text.SimpleDateFormat;
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -210,7 +211,8 @@ public class MainActivity extends Activity {
         String[]labels=new String[teams.size()];boolean[]checked=new boolean[teams.size()];for(int i=0;i<teams.size();i++){labels[i]=teams.get(i).name;checked[i]=chosen.contains(teams.get(i).name);}
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle(league.name+" · Equipos").setMultiChoiceItems(labels,checked,(d,pos,on)->{ApiClient.TeamOption team=teams.get(pos);if(on){chosen.add(team.name);store.saveApiTeamId("goal:C:"+team.name,team.id);store.saveApiTeamCountry(team.name,country);store.saveDynamicTeamCompetition(team.name,region+" › "+country+" › "+league.name);}else chosen.remove(team.name);}).setPositiveButton("Listo",(d,w)->showLeagueChoices(title,all,region,country,leagues,chosen,done,back)).setNegativeButton("Volver",(d,w)->showLeagueChoices(title,all,region,country,leagues,chosen,done,back)).create();dialog.setOnCancelListener(d->showLeagueChoices(title,all,region,country,leagues,chosen,done,back));dialog.show();
     }
-    private void showTeamSubset(String title,String[]all,Set<String>subset,Set<String>chosen,boolean national,SelectionDone done,Runnable back,Runnable returnTo){String[]values=subset.toArray(new String[0]);boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++)checked[i]=chosen.contains(values[i]);AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setMultiChoiceItems(values,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->returnTo.run()).setNegativeButton("Volver",(d,w)->returnTo.run()).create();dialog.setOnCancelListener(d->returnTo.run());dialog.show();}
+    private void showTeamSubset(String title,String[]all,Set<String>subset,Set<String>chosen,boolean national,SelectionDone done,Runnable back,Runnable returnTo){boolean selectedOnly=subset==chosen;List<String>sorted=new ArrayList<>(subset);Collator collator=Collator.getInstance(new Locale("es","UY"));sorted.sort((a,b)->{int group=collator.compare(teamGroup(a,national),teamGroup(b,national));return group!=0?group:collator.compare(a,b);});String[]values=sorted.toArray(new String[0]),labels=new String[values.length];boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++){checked[i]=chosen.contains(values[i]);labels[i]=selectedOnly?teamGroup(values[i],national)+" · "+values[i]:values[i];}AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setMultiChoiceItems(labels,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->returnTo.run()).setNegativeButton("Volver",(d,w)->returnTo.run()).create();dialog.setOnCancelListener(d->returnTo.run());dialog.show();}
+    private String teamGroup(String team,boolean national){String continent=national?AppStore.continentForNational(team):AppStore.continentForClub(team);if(continent==null)continent="Otros";if(national)return continent;String country=store.apiTeamCountry(team);if(country==null||country.isEmpty())country=AppStore.countryForClub(team);return country==null?continent:continent+" · "+country;}
 
     private void showSearchPicker(String title,String[] all,Set<String> initial,SelectionDone done,Runnable back){
         Set<String>chosen=new LinkedHashSet<>(initial);LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(18),0,dp(18),0);
@@ -257,7 +259,7 @@ public class MainActivity extends Activity {
     }
 
     private void showCompetitionSubset(String title,String[]all,Set<String>subset,Set<String>suggested,Set<String>chosen,boolean selections,SelectionDone done,Runnable back){
-        String[]values=subset.toArray(new String[0]),labels=new String[values.length];boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++){labels[i]=AppStore.shortName(values[i])+(selections?" · Mayores masculino":"");checked[i]=chosen.contains(values[i]);}
+        List<String>sorted=new ArrayList<>(subset);Collator collator=Collator.getInstance(new Locale("es","UY"));sorted.sort(collator::compare);String[]values=sorted.toArray(new String[0]),labels=new String[values.length];boolean[]checked=new boolean[values.length];for(int i=0;i<values.length;i++){String[]parts=values[i].split(" › ");String scope=parts.length>1?parts[parts.length-2]+" · ":"";labels[i]=scope+AppStore.shortName(values[i])+(selections?" · Mayores masculino":"");checked[i]=chosen.contains(values[i]);}
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Seleccionar competiciones").setMultiChoiceItems(labels,checked,(d,pos,on)->{if(on)chosen.add(values[pos]);else chosen.remove(values[pos]);}).setPositiveButton("Listo",(d,w)->showCompetitionMenu(title,all,suggested,chosen,selections,done,back)).setNegativeButton("Volver",(d,w)->showCompetitionMenu(title,all,suggested,chosen,selections,done,back)).create();dialog.setOnCancelListener(d->showCompetitionMenu(title,all,suggested,chosen,selections,done,back));dialog.show();
     }
 
