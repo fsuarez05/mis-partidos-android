@@ -36,6 +36,7 @@ class ApiClient {
     interface Callback { void done(boolean ok, String message); }
     interface TeamSearchCallback { void done(List<TeamOption> teams, String error); }
     interface LeagueCallback { void done(List<LeagueOption> leagues, String error); }
+    interface MatchSummaryCallback { void done(MatchSummary summary, String error); }
     static class TeamOption {
         final String id,name,country;final int importance;
         TeamOption(String id,String name,String country){this(id,name,country,0);}
@@ -198,7 +199,7 @@ class ApiClient {
             String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
             String opponent=selectedId.equals(homeId)?away:selectedId.equals(awayId)?home:(normalize(home).equals(normalize(selectedName))?away:home);
-            result.add(new Match(favoriteMatchId(matchId(f),selectedName),selectedName,opponent,competitionName(f),kickoff,false));
+            result.add(matchFromFixture(f,favoriteMatchId(matchId(f),selectedName),selectedName,opponent,kickoff,-1,-1));
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
         return result.isEmpty()?result:new ArrayList<>(result.subList(0,1));
@@ -213,7 +214,8 @@ class ApiClient {
                 boolean home=sameTeam(team,match.team),away=sameTeam(team,match.opponent);
                 if(!home&&!away)continue;
                 String opponent=home?match.opponent:match.team;
-                Match favorite=new Match(favoriteMatchId(match.id,team),team,opponent,match.competition,match.kickoff,false);
+                Match favorite=new Match(favoriteMatchId(match.id,team),team,opponent,match.competition,match.kickoff,false,-1,-1,
+                        match.fixtureId,match.local(),match.visitante(),match.homeTeamId,match.awayTeamId,match.country);
                 removeFavoriteForTeam(favorites,team);favorites.put(favorite.id,favorite);promoted=true;
             }
             if(!promoted)remaining.add(match);
@@ -258,7 +260,7 @@ class ApiClient {
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");boolean selected=favoriteIds.contains(homeId)||favoriteIds.contains(awayId);
             if(!selected)for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
-            result.add(new Match(matchId(f),home,away,competitionName(f),kickoff,false,score[0],score[1]));
+            result.add(matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]));
         }return result;
     }
 
@@ -279,7 +281,7 @@ class ApiClient {
             JSONObject f=data.getJSONObject(i);String competition=competitionName(f),country=f.optString("countryName");
             if(filterCompetitions&&!competitionSelected(competition,country,clubCups,nationalCups))continue;
             long kickoff=parseKickoff(f);if(kickoff<cutoff)continue;
-            result.add(new Match(matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),competition,kickoff,false));
+            result.add(matchFromFixture(f,matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),kickoff,-1,-1));
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));return result;
     }
@@ -295,6 +297,36 @@ class ApiClient {
         String stage=fixture.optString("stageName");
         if(!stage.isEmpty()&&!stage.equalsIgnoreCase("Current")&&!normalize(base).contains(normalize(stage)))return base+" · "+stage;
         return base;
+    }
+
+    private static Match matchFromFixture(JSONObject f,long displayId,String team,String opponent,long kickoff,int homeScore,int awayScore){
+        String fixtureId=f.optString("apiId");if(fixtureId.isEmpty())fixtureId=f.optString("id");
+        return new Match(displayId,team,opponent,competitionName(f),kickoff,false,homeScore,awayScore,
+                fixtureId,nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),
+                f.optString("homeTeamId"),f.optString("awayTeamId"),f.optString("countryName",f.optString("country")));
+    }
+
+    static void matchSummary(Context context,Match match,boolean refresh,MatchSummaryCallback callback){
+        prepare(context);
+        new Thread(()->{
+            MatchSummary summary=null;String error=null;
+            try{
+                TimeZone zone=TimeZone.getTimeZone("America/Montevideo");
+                SimpleDateFormat date=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY"));date.setTimeZone(zone);
+                SimpleDateFormat time=new SimpleDateFormat("HH:mm",new Locale("es","UY"));time.setTimeZone(zone);
+                Map<String,String> p=params("fixtureId",match.fixtureId,"local",match.local(),"visitante",match.visitante(),
+                        "pais",match.country,"competicion",match.competition,"fecha",date.format(new Date(match.kickoff)),
+                        "hora",time.format(new Date(match.kickoff)),"localId",match.homeTeamId,"visitanteId",match.awayTeamId);
+                if(refresh)p.put("refresh","true");
+                JSONObject wrapper=request("matchSummary",p);
+                if(!wrapper.optBoolean("ok"))throw new Exception("No se pudo obtener la información");
+                JSONObject data=wrapper.optJSONObject("data");
+                if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
+                summary=MatchSummary.fromJson(data);
+            }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
+            MatchSummary finalSummary=summary;String finalError=error;
+            new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
+        }).start();
     }
 
     private static long parseKickoff(JSONObject fixture)throws Exception{

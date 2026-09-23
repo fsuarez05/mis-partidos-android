@@ -77,7 +77,14 @@ public class AppStore {
     private static boolean any(Set<String>v,String...w){for(String s:w)if(v.contains(s))return true;return false;}
     private static void addContaining(Set<String>o,String[]source,String...terms){for(String s:source)for(String t:terms)if(s.contains(t)){o.add(s);break;}}
     static String countryForClub(String t){if(any(new HashSet<>(java.util.Arrays.asList("Peñarol","Nacional","Defensor Sporting","Liverpool (Uruguay)","Danubio","Cerro Largo")),t))return"Uruguay";if(any(new HashSet<>(java.util.Arrays.asList("River Plate","Boca Juniors","Racing Club","Independiente","San Lorenzo")),t))return"Argentina";if(any(new HashSet<>(java.util.Arrays.asList("Flamengo","Palmeiras","Corinthians","São Paulo","Grêmio","Internacional")),t))return"Brasil";if(any(new HashSet<>(java.util.Arrays.asList("Barcelona","Real Madrid","Atlético de Madrid","Sevilla","Valencia","Villarreal")),t))return"España";if(any(new HashSet<>(java.util.Arrays.asList("Manchester City","Manchester United","Chelsea","Liverpool","Arsenal","Tottenham")),t))return"Inglaterra";if(any(new HashSet<>(java.util.Arrays.asList("PSG","Olympique de Marsella","Monaco")),t))return"Francia";if(t.contains("Bayern")||t.contains("Dortmund"))return"Alemania";if(any(new HashSet<>(java.util.Arrays.asList("Juventus","Inter","Milan","Napoli")),t))return"Italia";if(t.equals("Benfica")||t.equals("Porto"))return"Portugal";if(t.equals("Ajax"))return"Países Bajos";return null;}
-    static String continentForClub(String t){String c=countryForClub(t);return c==null?null:(c.equals("Uruguay")||c.equals("Argentina")||c.equals("Brasil")?"América del Sur":"Europa");}
+    static String continentForClub(String t){return continentForCountry(countryForClub(t));}
+    static String continentForCountry(String c){
+        if(c==null||c.trim().isEmpty())return null;
+        if(any(new HashSet<>(java.util.Arrays.asList("Uruguay","Argentina","Brasil","Brazil","Chile","Colombia","Paraguay","Perú","Peru","Ecuador","Bolivia","Venezuela")),c))return"América del Sur";
+        if(any(new HashSet<>(java.util.Arrays.asList("Alemania","Germany","España","Spain","Francia","France","Inglaterra","England","Italia","Italy","Portugal","Países Bajos","Netherlands","Bélgica","Belgium","Escocia","Scotland","Turquía","Turkey")),c))return"Europa";
+        if(any(new HashSet<>(java.util.Arrays.asList("México","Mexico","Estados Unidos","USA","United States","Canadá","Canada","Costa Rica","Honduras","Panamá","Panama","Jamaica")),c))return"Norteamérica";
+        return null;
+    }
     static String continentForNational(String t){
         if(any(new HashSet<>(java.util.Arrays.asList("Uruguay","Argentina","Brasil","Chile","Colombia","Paraguay","Perú","Ecuador","Bolivia","Venezuela")),t))return"América del Sur";
         if(any(new HashSet<>(java.util.Arrays.asList("Alemania","Albania","Austria","Bélgica","Bosnia y Herzegovina","Bulgaria","Croacia","Dinamarca","Escocia","Eslovaquia","Eslovenia","España","Finlandia","Francia","Gales","Georgia","Grecia","Hungría","Inglaterra","Irlanda","Irlanda del Norte","Islandia","Italia","Noruega","Países Bajos","Polonia","Portugal","República Checa","Rumania","Serbia","Suecia","Suiza","Turquía","Ucrania")),t))return"Europa";
@@ -132,7 +139,8 @@ public class AppStore {
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
         for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&favorites.contains(m.team)){
             String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;String key=(m.kickoff/60_000L)+"|"+pair;
-            Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.team+" vs. "+old.opponent,"",old.competition,old.kickoff,false));
+            Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.local(),old.visitante(),old.competition,old.kickoff,false,-1,-1,
+                    old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country));
         }
         r.addAll(unique.values());
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
