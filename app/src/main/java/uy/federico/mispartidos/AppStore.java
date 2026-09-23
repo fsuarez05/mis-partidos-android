@@ -125,7 +125,7 @@ public class AppStore {
     String proxyToken(){return prefs.getString("proxy_token","").trim();}
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
     MatchSummary cachedMatchSummary(String fixtureId){if(fixtureId==null||fixtureId.isEmpty())return null;try{String value=prefs.getString("match_summary_"+fixtureId,"");return value.isEmpty()?null:MatchSummary.fromJson(new JSONObject(value));}catch(Exception ignored){return null;}}
-    void saveMatchSummary(String fixtureId,MatchSummary summary){if(fixtureId==null||fixtureId.isEmpty()||summary==null||summary.rawJson.isEmpty())return;MatchSummary old=cachedMatchSummary(fixtureId);if(old!=null&&old.informationScore()>summary.informationScore())return;prefs.edit().putString("match_summary_"+fixtureId,summary.rawJson).apply();}
+    void saveMatchSummary(String fixtureId,MatchSummary summary){if(fixtureId==null||fixtureId.isEmpty()||summary==null||summary.rawJson.isEmpty())return;prefs.edit().putString("match_summary_"+fixtureId,summary.rawJson).apply();}
     String apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));return ids.has(name)?ids.getString(name):null;}catch(Exception ignored){return null;}}
     void saveApiTeamId(String name,String id){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.put(name,id);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
     void clearApiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.remove(name);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
