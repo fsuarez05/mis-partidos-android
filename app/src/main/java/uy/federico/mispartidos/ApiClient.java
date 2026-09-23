@@ -322,7 +322,7 @@ class ApiClient {
                 if(!wrapper.optBoolean("ok"))throw new Exception("No se pudo obtener la información");
                 JSONObject data=wrapper.optJSONObject("data");
                 if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
-                summary=MatchSummary.fromJson(data);
+                summary=MatchSummary.fromJson(data);new AppStore(context).saveMatchSummary(match.fixtureId,summary);
             }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
             new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
@@ -439,7 +439,7 @@ class ApiClient {
     private static JSONObject requestOnce(String action,Map<String,String> values)throws Exception{
         StringBuilder u=new StringBuilder(proxyUrl);u.append(proxyUrl.contains("?")?'&':'?').append("action=").append(enc(action)).append("&token=").append(enc(proxyToken));
         for(Map.Entry<String,String> e:values.entrySet())u.append('&').append(enc(e.getKey())).append('=').append(enc(e.getValue()));
-        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout(45000);c.setInstanceFollowRedirects(true);
+        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout("matchSummary".equals(action)?120000:45000);c.setInstanceFollowRedirects(true);
         int status=c.getResponseCode();InputStream stream=status>=200&&status<400?c.getInputStream():c.getErrorStream();
         BufferedReader reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8));StringBuilder body=new StringBuilder();String line;
         while((line=reader.readLine())!=null)body.append(line);reader.close();c.disconnect();
