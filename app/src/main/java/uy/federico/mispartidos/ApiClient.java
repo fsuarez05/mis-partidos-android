@@ -245,7 +245,7 @@ class ApiClient {
         Map<String,String> aliases=new HashMap<>();
         aliases.put("norway","noruega");aliases.put("netherlands","paises bajos");aliases.put("belgium","belgica");
         aliases.put("germany","alemania");aliases.put("spain","espana");aliases.put("england","inglaterra");aliases.put("france","francia");
-        aliases.put("brazil","brasil");aliases.put("japan","japon");aliases.put("south korea","corea del sur");aliases.put("usa","estados unidos");
+        aliases.put("greece","grecia");aliases.put("brazil","brasil");aliases.put("japan","japon");aliases.put("south korea","corea del sur");aliases.put("usa","estados unidos");
         return aliases.containsKey(n)?aliases.get(n):n;
     }
 
@@ -253,7 +253,7 @@ class ApiClient {
         String n=normalize(value);Map<String,String> names=new HashMap<>();
         names.put("norway","Noruega");names.put("netherlands","Países Bajos");names.put("belgium","Bélgica");
         names.put("germany","Alemania");names.put("spain","España");names.put("england","Inglaterra");names.put("france","Francia");
-        names.put("brazil","Brasil");names.put("japan","Japón");names.put("south korea","Corea del Sur");names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");
+        names.put("greece","Grecia");names.put("brazil","Brasil");names.put("japan","Japón");names.put("south korea","Corea del Sur");names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");
         return names.containsKey(n)?names.get(n):value;
     }
 

@@ -124,13 +124,17 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable(); bg.setColor(Color.WHITE); bg.setCornerRadius(dp(14)); bg.setStroke(dp(1), Color.rgb(226,232,240)); card.setBackground(bg);
         TextView badge=text(m.opponent.isEmpty()?"★":teamInitials(m.team),14,Color.WHITE,true);badge.setGravity(Gravity.CENTER);android.graphics.drawable.GradientDrawable badgeBg=new android.graphics.drawable.GradientDrawable();badgeBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);badgeBg.setColor(teamColor(m.team));badge.setBackground(badgeBg);
         LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),0,0,0);
-        TextView team = text(m.team,18,Color.rgb(15,23,42),true); TextView versus = text(m.team + "  vs.  " + m.opponent,16,Color.rgb(30,41,59),false);
+        boolean bothFavorites=isFavorite(m.team)&&isFavorite(m.opponent);
+        String matchLabel=m.team + "  vs.  " + m.opponent;
+        TextView team = text(bothFavorites?matchLabel:m.team,18,Color.rgb(15,23,42),true); TextView versus = text(matchLabel,16,Color.rgb(30,41,59),false);
         TextView date = text(dateFormat.format(new Date(m.kickoff)),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
         TextView countdown=text(matchTiming(m),13,AppStore.isInProgress(m)?Color.rgb(190,24,24):Color.rgb(37,99,235),true);
-        content.addView(team); if(!m.opponent.isEmpty())content.addView(versus); content.addView(date);content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
+        content.addView(team); if(!m.opponent.isEmpty()&&!bothFavorites)content.addView(versus); content.addView(date);content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); card.setLayoutParams(lp); return card;
     }
+
+    private boolean isFavorite(String team){return store.selectedTeams().contains(team)||store.selectedNationalTeams().contains(team);}
 
     private String summaryText() { return "⭐ " + store.selectedTeams().size() + " clubes · " + store.selectedClubCompetitions().size() + " competiciones · " + store.selectedNationalTeams().size() + " selecciones"; }
 
