@@ -277,7 +277,7 @@ class ApiClient {
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");boolean selected=favoriteIds.contains(homeId)||favoriteIds.contains(awayId);
             if(!selected)for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
-            result.add(matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]));
+            Match parsed=matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]);if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }return result;
     }
 
@@ -298,7 +298,8 @@ class ApiClient {
             JSONObject f=data.getJSONObject(i);String competition=competitionName(f),country=f.optString("countryName");
             if(filterCompetitions&&!competitionSelected(competition,country,clubCups,nationalCups))continue;
             long kickoff=parseKickoff(f);if(kickoff<cutoff)continue;
-            result.add(matchFromFixture(f,matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),kickoff,-1,-1));
+            Match parsed=matchFromFixture(f,matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),kickoff,-1,-1);
+            if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));return result;
     }

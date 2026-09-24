@@ -13,6 +13,7 @@ import java.util.Set;
 
 public class AppStore {
     static final long MATCH_DURATION_MS=135*60_000L;
+    static final long UPCOMING_HORIZON_MS=60L*24*60*60_000L;
     static final String[] CLUBS = {"Peñarol", "Nacional", "Defensor Sporting", "Liverpool (Uruguay)", "Danubio", "Cerro Largo",
             "River Plate", "Boca Juniors", "Racing Club", "Independiente", "San Lorenzo",
             "Flamengo", "Palmeiras", "Corinthians", "São Paulo", "Grêmio", "Internacional",
@@ -106,9 +107,9 @@ public class AppStore {
 
     private List<Match>readMatches(String key){List<Match>r=new ArrayList<>();try{JSONArray a=new JSONArray(prefs.getString(key,"[]"));for(int i=0;i<a.length();i++)r.add(Match.fromJson(a.getJSONObject(i)));}catch(Exception ignored){}return r;}
     private String matchesJson(List<Match>matches){JSONArray a=new JSONArray();try{for(Match m:matches)a.put(m.toJson());}catch(Exception ignored){}return a.toString();}
-    List<Match> apiFavoriteMatches(){return readMatches("api_favorite_matches");}
-    List<Match> apiTodayMatches(){return readMatches("api_today_matches");}
-    List<Match> recentResults(){return readMatches("api_recent_results");}
+    List<Match> apiFavoriteMatches(){return seniorMatches(readMatches("api_favorite_matches"));}
+    List<Match> apiTodayMatches(){return seniorMatches(readMatches("api_today_matches"));}
+    List<Match> recentResults(){return seniorMatches(readMatches("api_recent_results"));}
     void saveApiMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
     boolean dailySummaryEnabled(){return prefs.getBoolean("daily_summary",false);}
     void saveDailySummaryEnabled(boolean enabled){prefs.edit().putBoolean("daily_summary",enabled).apply();}
@@ -137,9 +138,9 @@ public class AppStore {
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
     List<Match>upcoming(){
-        long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now)r.add(m);
+        long now=System.currentTimeMillis(),horizon=now+UPCOMING_HORIZON_MS;Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m))r.add(m);
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
-        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&favorites.contains(m.team)){
+        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m)&&favorites.contains(m.team)){
             String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;
             // El mismo fixture puede llegar una vez por cada favorito. El ID
             // real es estable incluso si GOAL devuelve un nombre traducido en
@@ -155,6 +156,13 @@ public class AppStore {
         long now=System.currentTimeMillis();List<Match>result=new ArrayList<>();for(Match m:apiTodayMatches())if(m.kickoff+MATCH_DURATION_MS>now)result.add(m);return result;
     }
     static boolean isInProgress(Match match){long now=System.currentTimeMillis();return match.kickoff<=now&&match.kickoff+MATCH_DURATION_MS>now;}
+    private static List<Match>seniorMatches(List<Match>values){List<Match>result=new ArrayList<>();for(Match m:values)if(isSeniorMatch(m))result.add(m);return result;}
+    private static boolean isSeniorMatch(Match m){
+        String value=(m.team+" "+m.opponent+" "+m.competition).toLowerCase(java.util.Locale.ROOT);
+        return !value.matches(".*\\b(u|sub|under)[ -]?(15|16|17|18|19|20|21|22|23)\\b.*")
+                &&!value.contains("youth")&&!value.contains("juvenil")&&!value.contains("women")
+                &&!value.contains("woman")&&!value.contains("femenin");
+    }
     private String[]sampleTeamsFor(String c){
         if(c.contains("Uruguay"))return new String[]{"Defensor Sporting","Danubio"};
         if(c.contains("Argentina"))return new String[]{"Boca Juniors","Racing Club"};
