@@ -121,9 +121,9 @@ class ApiClient {
         String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
         String teamId=resolveTeamId(store,selectedName,national,cacheKey,false);
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
-        JSONArray fixtures;
-        try{fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
-        catch(Exception e){if(!String.valueOf(e.getMessage()).contains("404"))throw e;store.clearApiTeamId(cacheKey);teamId=resolveTeamId(store,selectedName,national,cacheKey,true);if(teamId==null||teamId.isEmpty())throw e;fixtures=apiData(request("teamUpcoming",params("team",teamId,"limit","3")));}
+        String action=national?"teamUpcoming":"teamFixtures";String limit=national?"20":"100";JSONArray fixtures;
+        try{fixtures=apiData(request(action,params("team",teamId,"limit",limit)));}
+        catch(Exception e){if(!String.valueOf(e.getMessage()).contains("404"))throw e;store.clearApiTeamId(cacheKey);teamId=resolveTeamId(store,selectedName,national,cacheKey,true);if(teamId==null||teamId.isEmpty())throw e;fixtures=apiData(request(action,params("team",teamId,"limit",limit)));}
         List<Match> matches=parseUpcoming(fixtures,selectedName,teamId);for(Match match:matches)out.put(match.id,match);return !matches.isEmpty();
     }
 
@@ -194,13 +194,13 @@ class ApiClient {
     }
 
     private static List<Match> parseUpcoming(JSONArray data,String selectedName,String selectedId)throws Exception{
-        List<Match> result=new ArrayList<>();long now=System.currentTimeMillis();
+        List<Match> result=new ArrayList<>();long now=System.currentTimeMillis(),horizon=now+AppStore.UPCOMING_HORIZON_MS;
         for(int i=0;i<data.length();i++){
-            JSONObject f=data.getJSONObject(i);long kickoff=parseKickoff(f);if(kickoff<=now)continue;
+            JSONObject f=data.getJSONObject(i);long kickoff=parseKickoff(f);if(kickoff<=now||kickoff>horizon)continue;
             String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
             String opponent=selectedId.equals(homeId)?away:selectedId.equals(awayId)?home:(normalize(home).equals(normalize(selectedName))?away:home);
-            result.add(matchFromFixture(f,favoriteMatchId(matchId(f),selectedName),selectedName,opponent,kickoff,-1,-1));
+            Match parsed=matchFromFixture(f,favoriteMatchId(matchId(f),selectedName),selectedName,opponent,kickoff,-1,-1);if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
         return result.isEmpty()?result:new ArrayList<>(result.subList(0,1));
