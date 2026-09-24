@@ -140,7 +140,11 @@ public class AppStore {
         long now=System.currentTimeMillis();Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now)r.add(m);
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
         for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&favorites.contains(m.team)){
-            String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;String key=(m.kickoff/60_000L)+"|"+pair;
+            String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;
+            // El mismo fixture puede llegar una vez por cada favorito. El ID
+            // real es estable incluso si GOAL devuelve un nombre traducido en
+            // una tarjeta y en inglés en la otra.
+            String key=m.fixtureId.isEmpty()?(m.kickoff/60_000L)+"|"+pair:"fixture|"+m.fixtureId;
             Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.local(),old.visitante(),old.competition,old.kickoff,false,-1,-1,
                     old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country));
         }

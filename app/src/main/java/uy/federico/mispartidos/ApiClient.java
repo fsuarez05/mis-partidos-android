@@ -238,7 +238,23 @@ class ApiClient {
         return canonicalTeam(a).equals(canonicalTeam(b));
     }
 
-    private static String canonicalTeam(String value){String n=normalize(value).replaceAll("\\b(fc|afc|cf|ca|sc|club)\\b"," ").replaceAll("\\s+"," ").trim();if(n.equals("internazionale"))return"inter";if(n.equals("paris saint germain"))return"psg";return n;}
+    private static String canonicalTeam(String value){
+        String n=normalize(value).replaceAll("\\b(fc|afc|cf|ca|sc|club)\\b"," ").replaceAll("\\s+"," ").trim();
+        if(n.equals("internazionale"))return"inter";if(n.equals("paris saint germain"))return"psg";
+        Map<String,String> aliases=new HashMap<>();
+        aliases.put("norway","noruega");aliases.put("netherlands","paises bajos");aliases.put("belgium","belgica");
+        aliases.put("germany","alemania");aliases.put("spain","espana");aliases.put("england","inglaterra");aliases.put("france","francia");
+        aliases.put("brazil","brasil");aliases.put("japan","japon");aliases.put("south korea","corea del sur");aliases.put("usa","estados unidos");
+        return aliases.containsKey(n)?aliases.get(n):n;
+    }
+
+    private static String displayTeamName(String value){
+        String n=normalize(value);Map<String,String> names=new HashMap<>();
+        names.put("norway","Noruega");names.put("netherlands","Países Bajos");names.put("belgium","Bélgica");
+        names.put("germany","Alemania");names.put("spain","España");names.put("england","Inglaterra");names.put("france","Francia");
+        names.put("brazil","Brasil");names.put("japan","Japón");names.put("south korea","Corea del Sur");names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");
+        return names.containsKey(n)?names.get(n):value;
+    }
 
     private static long favoriteMatchId(long fixtureId,String team){
         String value=fixtureId+"|"+normalize(team);long id=1125899906842597L;for(int i=0;i<value.length();i++)id=31*id+value.charAt(i);return id==Long.MIN_VALUE?0:Math.abs(id);
@@ -301,8 +317,8 @@ class ApiClient {
 
     private static Match matchFromFixture(JSONObject f,long displayId,String team,String opponent,long kickoff,int homeScore,int awayScore){
         String fixtureId=f.optString("apiId");if(fixtureId.isEmpty())fixtureId=f.optString("id");
-        return new Match(displayId,team,opponent,competitionName(f),kickoff,false,homeScore,awayScore,
-                fixtureId,nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),
+        return new Match(displayId,displayTeamName(team),displayTeamName(opponent),competitionName(f),kickoff,false,homeScore,awayScore,
+                fixtureId,displayTeamName(nameOf(f,"homeTeam","homeTeamName")),displayTeamName(nameOf(f,"awayTeam","awayTeamName")),
                 f.optString("homeTeamId"),f.optString("awayTeamId"),f.optString("countryName",f.optString("country")));
     }
 
