@@ -10,6 +10,10 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class AppStore {
     static final long MATCH_DURATION_MS=135*60_000L;
@@ -117,6 +121,11 @@ public class AppStore {
     int dailySummaryMinute(){return prefs.getInt("daily_summary_minute",0);}
     void saveDailySummaryTime(int hour,int minute){prefs.edit().putInt("daily_summary_hour",hour).putInt("daily_summary_minute",minute).apply();}
     boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>43_200_000L;}
+    private String montevideoDay(){SimpleDateFormat f=new SimpleDateFormat("yyyyMMdd",new Locale("es","UY"));f.setTimeZone(TimeZone.getTimeZone("America/Montevideo"));return f.format(new Date());}
+    boolean needsDailyOpenSync(){return !montevideoDay().equals(prefs.getString("daily_open_sync_day",""));}
+    void markDailyOpenSync(){prefs.edit().putString("daily_open_sync_day",montevideoDay()).apply();}
+    boolean needsDailySummaryPrefetch(){return !montevideoDay().equals(prefs.getString("daily_summary_prefetch_day",""));}
+    void markDailySummaryPrefetch(){prefs.edit().putString("daily_summary_prefetch_day",montevideoDay()).apply();}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
     long nextBackgroundSync(){return prefs.getLong("next_background_sync",0);}
     void saveNextBackgroundSync(long value){prefs.edit().putLong("next_background_sync",value).apply();}

@@ -35,6 +35,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -54,7 +55,8 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
         BackgroundSyncScheduler.schedule(this);DailySummaryScheduler.schedule(this);
-        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent()); syncNow(false);
+        buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent());
+        boolean firstOpenToday=store.needsDailyOpenSync();syncNow(firstOpenToday,firstOpenToday);
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
@@ -323,11 +325,21 @@ public class MainActivity extends Activity {
 
     private void requestNotificationPermission() { if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7); }
     private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
-    private void syncNow(boolean force){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}buildScreen();if(force)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
+    private void syncNow(boolean force){syncNow(force,false);}
+    private void syncNow(boolean force,boolean dailyOpen){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){if(dailyOpen)store.markDailyOpenSync();AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);if(store.needsDailySummaryPrefetch())prefetchMatchSummaries();}buildScreen();if(force&&!dailyOpen)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
+    private void prefetchMatchSummaries(){
+        LinkedHashMap<String,Match> pending=new LinkedHashMap<>();List<Match>all=new ArrayList<>(store.upcoming());all.addAll(store.todayByCompetitions());
+        for(Match m:all)if(!m.manual&&m.hasRealFixtureId())pending.put(m.fixtureId,m);
+        prefetchNext(new ArrayList<>(pending.values()),0);
+    }
+    private void prefetchNext(List<Match>matches,int index){
+        if(index>=matches.size()){store.markDailySummaryPrefetch();return;}
+        ApiClient.matchSummary(this,matches.get(index),false,(summary,error)->prefetchNext(matches,index+1));
+    }
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
     private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(m.kickoff).atZone(zone).toLocalDate();long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}
-    private void showMatchActions(Match m){String[]items={"Ver información del partido","Buscar partido en Google","Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else if(pos==2)addToCalendar(m);else if(pos==3)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
+    private void showMatchActions(Match m){if(AppStore.isInProgress(m)){String[]items={"Ver información del partido","Buscar partido en Google","Compartir partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();return;}String[]items={"Ver información del partido","Buscar partido en Google","Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else if(pos==2)addToCalendar(m);else if(pos==3)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void showInfoOrGoogle(Match m){String[]items={"Ver información del partido","Buscar en Google"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else searchMatchOnGoogle(m);}).setNegativeButton("Cerrar",null).show();}
     private void openMatchInfo(Match m){if(!m.hasRealFixtureId()){new AlertDialog.Builder(this).setTitle("Información del partido").setMessage("Falta actualizar los datos de este partido para obtener su identificación real.").setPositiveButton("Actualizar partidos",(d,w)->syncNow(true)).setNeutralButton("Buscar en Google",(d,w)->searchMatchOnGoogle(m)).setNegativeButton("Cerrar",null).show();return;}try{Intent i=new Intent(this,MatchInfoActivity.class);i.putExtra("match",m.toJson().toString());startActivity(i);}catch(Exception e){Toast.makeText(this,"No pudimos abrir la información del partido",Toast.LENGTH_LONG).show();}}
     private void searchMatchOnGoogle(Match m){String game=m.opponent.isEmpty()?m.team:m.team+" vs "+m.opponent;String day=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY")).format(new Date(m.kickoff));Uri url=Uri.parse("https://www.google.com/search?q="+Uri.encode(game+" "+day));try{startActivity(new Intent(Intent.ACTION_VIEW,url));}catch(Exception e){Toast.makeText(this,"No encontré un navegador",Toast.LENGTH_LONG).show();}}
