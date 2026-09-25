@@ -51,6 +51,7 @@ class ApiClient {
         String label(){return season==null||season.isEmpty()?name:name+" · "+season;}
     }
     private static String proxyUrl="",proxyToken="";
+    private static final Map<String,String> COUNTRY_NAMES_ES=buildCountryNamesEs();
 
     static boolean configured(Context context) {
         AppStore store=new AppStore(context);
@@ -258,7 +259,22 @@ class ApiClient {
         names.put("sweden","Suecia");names.put("switzerland","Suiza");names.put("austria","Austria");names.put("poland","Polonia");
         names.put("czech republic","República Checa");names.put("turkey","Turquía");names.put("scotland","Escocia");names.put("ireland","Irlanda");
         names.put("northern ireland","Irlanda del Norte");names.put("croatia","Croacia");names.put("serbia","Serbia");names.put("hungary","Hungría");
-        return names.containsKey(n)?names.get(n):value;
+        if(names.containsKey(n))return names.get(n);
+        String automatic=COUNTRY_NAMES_ES.get(n);
+        return automatic==null||automatic.isEmpty()?value:automatic;
+    }
+
+    private static Map<String,String> buildCountryNamesEs(){
+        Map<String,String> result=new HashMap<>();Locale spanish=new Locale("es","UY");
+        for(String code:Locale.getISOCountries()){
+            Locale country=new Locale("",code);String english=country.getDisplayCountry(Locale.ENGLISH);String local=country.getDisplayCountry(spanish);
+            if(english!=null&&!english.isEmpty()&&local!=null&&!local.isEmpty())result.put(normalize(english),capitalize(local));
+        }
+        return result;
+    }
+
+    private static String capitalize(String value){
+        if(value==null||value.isEmpty())return value;return value.substring(0,1).toUpperCase(new Locale("es","UY"))+value.substring(1);
     }
 
     static String displayCompetitionName(String value){
