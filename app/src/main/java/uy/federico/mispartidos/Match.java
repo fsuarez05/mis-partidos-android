@@ -31,10 +31,10 @@ public class Match {
     public Match(long id, String team, String opponent, String competition, long kickoff, boolean manual,
                  int homeScore, int awayScore, String fixtureId, String homeTeam, String awayTeam,
                  String homeTeamId, String awayTeamId, String country) {
-        this.id = id; this.team = team; this.opponent = opponent;
-        this.competition = competition; this.kickoff = kickoff; this.manual = manual;
+        this.id = id; this.team = ApiClient.displayTeamName(clean(team)); this.opponent = ApiClient.displayTeamName(clean(opponent));
+        this.competition = ApiClient.displayCompetitionName(clean(competition)); this.kickoff = kickoff; this.manual = manual;
         this.homeScore=homeScore;this.awayScore=awayScore;
-        this.fixtureId=clean(fixtureId);this.homeTeam=clean(homeTeam);this.awayTeam=clean(awayTeam);
+        this.fixtureId=clean(fixtureId);this.homeTeam=ApiClient.displayTeamName(clean(homeTeam));this.awayTeam=ApiClient.displayTeamName(clean(awayTeam));
         this.homeTeamId=clean(homeTeamId);this.awayTeamId=clean(awayTeamId);this.country=clean(country);
     }
 

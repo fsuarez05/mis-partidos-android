@@ -249,12 +249,32 @@ class ApiClient {
         return aliases.containsKey(n)?aliases.get(n):n;
     }
 
-    private static String displayTeamName(String value){
+    static String displayTeamName(String value){
         String n=normalize(value);Map<String,String> names=new HashMap<>();
         names.put("norway","Noruega");names.put("netherlands","Países Bajos");names.put("belgium","Bélgica");
         names.put("germany","Alemania");names.put("spain","España");names.put("england","Inglaterra");names.put("france","Francia");
-        names.put("greece","Grecia");names.put("brazil","Brasil");names.put("japan","Japón");names.put("south korea","Corea del Sur");names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");
+        names.put("greece","Grecia");names.put("brazil","Brasil");names.put("japan","Japón");names.put("south korea","Corea del Sur");names.put("korea republic","Corea del Sur");
+        names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");names.put("wales","Gales");names.put("denmark","Dinamarca");
+        names.put("sweden","Suecia");names.put("switzerland","Suiza");names.put("austria","Austria");names.put("poland","Polonia");
+        names.put("czech republic","República Checa");names.put("turkey","Turquía");names.put("scotland","Escocia");names.put("ireland","Irlanda");
+        names.put("northern ireland","Irlanda del Norte");names.put("croatia","Croacia");names.put("serbia","Serbia");names.put("hungary","Hungría");
         return names.containsKey(n)?names.get(n):value;
+    }
+
+    static String displayCompetitionName(String value){
+        if(value==null)return"";
+        String[]parts=value.split("\\s*·\\s*");List<String>translated=new ArrayList<>();
+        for(String raw:parts){String part=raw.trim(),n=normalize(part);String shown=part;
+            if(n.equals("friendlies")||n.equals("friendly")||n.equals("international friendlies"))shown="Amistosos de selecciones";
+            else if(n.equals("group stage"))shown="Fase de grupos";
+            else if(n.equals("round of 16"))shown="Octavos de final";
+            else if(n.equals("quarter finals")||n.equals("quarter-finals"))shown="Cuartos de final";
+            else if(n.equals("semi finals")||n.equals("semi-finals"))shown="Semifinales";
+            else if(n.equals("final"))shown="Final";
+            else if(n.equals("league a"))shown="Liga A";
+            translated.add(shown);
+        }
+        return android.text.TextUtils.join(" · ",translated);
     }
 
     private static long favoriteMatchId(long fixtureId,String team){
@@ -313,8 +333,8 @@ class ApiClient {
         JSONObject league=fixture.optJSONObject("league");
         String base=league==null?fixture.optString("leagueName","Partido"):league.optString("name",fixture.optString("leagueName","Partido"));
         String stage=fixture.optString("stageName");
-        if(!stage.isEmpty()&&!stage.equalsIgnoreCase("Current")&&!normalize(base).contains(normalize(stage)))return base+" · "+stage;
-        return base;
+        if(!stage.isEmpty()&&!stage.equalsIgnoreCase("Current")&&!normalize(base).contains(normalize(stage)))return displayCompetitionName(base+" · "+stage);
+        return displayCompetitionName(base);
     }
 
     private static Match matchFromFixture(JSONObject f,long displayId,String team,String opponent,long kickoff,int homeScore,int awayScore){
