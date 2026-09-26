@@ -310,11 +310,23 @@ class ApiClient {
         for(String team:store.selectedTeams()){String id=store.apiTeamId("goal:C:"+team);if(id!=null&&!id.isEmpty())favoriteIds.add(id);}for(String team:store.selectedNationalTeams()){String id=store.apiTeamId("goal:N:"+team);if(id!=null&&!id.isEmpty())favoriteIds.add(id);}
         long now=System.currentTimeMillis();for(int i=0;i<data.length();i++){
             JSONObject f=data.getJSONObject(i);long kickoff=parseKickoff(f);if(kickoff>now)continue;
+            // Un marcador parcial no convierte al fixture en resultado final.
+            // Si la API no aporta un estado final inequívoco, se espera al menos
+            // hasta el margen normal de duración del partido antes de archivarlo.
+            if(!fixtureIsFinished(f,now,kickoff))continue;
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");boolean selected=favoriteIds.contains(homeId)||favoriteIds.contains(awayId);
             if(!selected)for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
             Match parsed=matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]);if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }return result;
+    }
+
+    private static boolean fixtureIsFinished(JSONObject f,long now,long kickoff){
+        String status=normalize(f.optString("status")+" "+f.optString("state")+" "+f.optString("statusName")+" "+f.optString("fixtureStatus"));
+        if(status.contains("finished")||status.contains("full time")||status.equals("ft")||status.contains("after penalties")||status.contains("after extra time")||status.contains("ended")||status.contains("final"))return true;
+        if(status.contains("live")||status.contains("playing")||status.contains("in progress")||status.contains("half time")||status.contains("halftime")||status.contains("1st half")||status.contains("2nd half"))return false;
+        // Respaldo para proveedores que entregan marcador pero no estado.
+        return now>=kickoff+AppStore.MATCH_DURATION_MS;
     }
 
     private static int[] scoreOf(JSONObject f){
