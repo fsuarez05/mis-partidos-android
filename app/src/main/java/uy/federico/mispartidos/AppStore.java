@@ -161,6 +161,14 @@ public class AppStore {
         r.addAll(unique.values());
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
     }
+    Match findUpcomingForNotification(long matchId,String fixtureId){
+        for(Match m:upcoming()){
+            if(fixtureId!=null&&!fixtureId.isEmpty()&&fixtureId.equals(m.fixtureId))return m;
+            if(matchId!=Long.MIN_VALUE&&matchId==m.id)return m;
+        }
+        return null;
+    }
+
     List<Match>todayByCompetitions(){
         long now=System.currentTimeMillis();List<Match>result=new ArrayList<>();for(Match m:apiTodayMatches())if(m.kickoff+MATCH_DURATION_MS>now)result.add(m);return result;
     }
