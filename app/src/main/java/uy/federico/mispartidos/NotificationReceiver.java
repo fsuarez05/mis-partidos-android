@@ -16,6 +16,21 @@ public class NotificationReceiver extends BroadcastReceiver {
         String team = intent.getStringExtra("team"), opponent = intent.getStringExtra("opponent");
         int minutes = intent.getIntExtra("minutes", 60);
         long kickoff = intent.getLongExtra("kickoff", 0);
+        long matchId = intent.getLongExtra("match_id", Long.MIN_VALUE);
+        String fixtureId = intent.getStringExtra("fixture_id");
+        AppStore store = new AppStore(context);
+        Match current = store.findUpcomingForNotification(matchId, fixtureId);
+        // Antes de mostrar, valida que el partido, horario y preferencia sigan vigentes.
+        // Así una alarma antigua que Android conserve no puede generar un aviso obsoleto.
+        if (current == null) return;
+        int currentMinutes = store.noticeMinutesFor(current);
+        if (currentMinutes != minutes || current.kickoff != kickoff) return;
+        long expectedTrigger = current.kickoff - currentMinutes * 60_000L;
+        long now = System.currentTimeMillis();
+        if (now < expectedTrigger - 60_000L || now >= current.kickoff) return;
+        team = current.team;
+        opponent = current.opponent;
+        kickoff = current.kickoff;
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Avisos de partidos", NotificationManager.IMPORTANCE_HIGH));
         Intent open = new Intent(context, MainActivity.class)
