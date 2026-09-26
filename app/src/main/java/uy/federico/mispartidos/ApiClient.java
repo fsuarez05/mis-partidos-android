@@ -411,7 +411,16 @@ class ApiClient {
                 continue;
             }
             if(!expectedName.equals(actualName))continue;
-            if(expectedScope.equals("uefa")||expectedScope.equals("conmebol")||expectedScope.equals("fifa"))return actualCountry.equals("intl")||actualCountry.equals("world")||actualName.contains(expectedScope);
+            if(expectedScope.equals("uefa")){
+                // Las competiciones UEFA de selecciones pueden llegar desde GOAL
+                // con countryName Europe/International/World, mientras que el nombre
+                // de liga ya identifica inequívocamente UEFA Nations League, Euro, etc.
+                return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("europe")||actualName.contains("uefa");
+            }
+            if(expectedScope.equals("conmebol")){
+                return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("south america")||actualName.contains("conmebol");
+            }
+            if(expectedScope.equals("fifa"))return actualCountry.equals("intl")||actualCountry.equals("world")||actualName.contains("fifa")||actualName.equals("world cup");
             if(expectedScope.equals(actualCountry))return true;
         }
         return false;
