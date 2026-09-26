@@ -212,8 +212,25 @@ class ApiClient {
         for(Match match:today){
             boolean promoted=false;
             for(String team:selected){
-                if(national.contains(team)&&isYouthOrWomenFixture(match))continue;
-                boolean home=sameTeam(team,match.team),away=sameTeam(team,match.opponent);
+                boolean isNational=national.contains(team);
+                if(isNational&&isYouthOrWomenFixture(match))continue;
+                String cacheKey="goal:"+(isNational?"N:":"C:")+team;
+                String selectedId=store.apiTeamId(cacheKey);
+                boolean home=!selectedId.isEmpty()&&selectedId.equals(match.homeTeamId);
+                boolean away=!selectedId.isEmpty()&&selectedId.equals(match.awayTeamId);
+                // Sólo recurrimos al nombre si aún no existe un ID resuelto, y en ese
+                // caso exigimos además el ámbito correcto para evitar homónimos.
+                if(selectedId.isEmpty()){
+                    boolean nameHome=sameTeam(team,match.team),nameAway=sameTeam(team,match.opponent);
+                    if(isNational){
+                        boolean international=isInternationalFixture(match);
+                        home=international&&nameHome;away=international&&nameAway;
+                    }else{
+                        String expected=canonicalCountry(AppStore.countryForClub(team));
+                        boolean rightCountry=expected.isEmpty()||expected.equals(canonicalCountry(match.country));
+                        home=rightCountry&&nameHome;away=rightCountry&&nameAway;
+                    }
+                }
                 if(!home&&!away)continue;
                 String opponent=home?match.opponent:match.team;
                 Match favorite=new Match(favoriteMatchId(match.id,team),team,opponent,match.competition,match.kickoff,false,-1,-1,
@@ -223,6 +240,13 @@ class ApiClient {
             if(!promoted)remaining.add(match);
         }
         return remaining;
+    }
+
+    private static boolean isInternationalFixture(Match match){
+        String country=canonicalCountry(match.country),competition=canonicalCompetition(match.competition);
+        return country.equals("intl")||country.equals("world")||country.equals("europe")||country.equals("south america")
+                ||competition.contains("uefa")||competition.contains("conmebol")||competition.contains("world cup")
+                ||competition.contains("copa america")||competition.contains("friendlies");
     }
 
     private static boolean isYouthOrWomenFixture(Match match){
