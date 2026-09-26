@@ -53,7 +53,22 @@ public class AppStore {
             "Europa › UEFA › Eurocopa", "Europa › UEFA › Nations League", "Europa › UEFA › Eliminatorias",
             "Mundo › FIFA › Copa del Mundo", "Mundo › FIFA › Amistosos internacionales"};
     private final SharedPreferences prefs;
-    AppStore(Context context) { prefs=context.getSharedPreferences("mis_partidos",Context.MODE_PRIVATE); }
+    AppStore(Context context) {
+        prefs=context.getSharedPreferences("mis_partidos",Context.MODE_PRIVATE);
+        migrateTeamIdentityCache();
+    }
+
+    private void migrateTeamIdentityCache(){
+        final int version=2;
+        if(prefs.getInt("team_identity_cache_version",0)>=version)return;
+        // Los IDs de versiones anteriores pudieron resolverse sólo por nombre
+        // (p.ej. Liverpool UY/ENG o club Uruguay/selección). Se regeneran una vez
+        // con las reglas actuales de país + tipo + ID.
+        prefs.edit()
+                .remove("goal_team_ids")
+                .putInt("team_identity_cache_version",version)
+                .apply();
+    }
 
     Set<String> selectedTeams(){
         Set<String> saved=prefs.getStringSet("club_teams",null); if(saved!=null)return new LinkedHashSet<>(saved);
