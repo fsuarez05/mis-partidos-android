@@ -354,7 +354,22 @@ public class MainActivity extends Activity {
         try{startActivity(new Intent(Intent.ACTION_VIEW,url));}catch(Exception e){Toast.makeText(this,"No encontré un navegador",Toast.LENGTH_LONG).show();}
     }
     private void addToCalendar(Match m){Intent i=new Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI).putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME,m.kickoff).putExtra(CalendarContract.EXTRA_EVENT_END_TIME,m.kickoff+AppStore.MATCH_DURATION_MS).putExtra(CalendarContract.Events.TITLE,"⚽ "+(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent)).putExtra(CalendarContract.Events.DESCRIPTION,m.competition);try{startActivity(i);}catch(Exception e){Toast.makeText(this,"No encontré una aplicación de calendario",Toast.LENGTH_LONG).show();}}
-    private void shareMatch(Match m){String match=m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent;String value="⚽ "+match+"\n"+dateFormat.format(new Date(m.kickoff))+"\n"+m.competition;startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,value),"Compartir partido"));}
+    private void shareMatch(Match m){
+        String match=m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent;
+        SimpleDateFormat date=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm 'hs'",new Locale("es","UY"));date.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));
+        String formatted=date.format(new Date(m.kickoff));formatted=formatted.substring(0,1).toUpperCase(new Locale("es","UY"))+formatted.substring(1);
+        StringBuilder value=new StringBuilder();
+        if(AppStore.isInProgress(m))value.append("🔴 EN JUEGO\n");
+        else if(m.homeScore>=0&&m.awayScore>=0)value.append("✅ Finalizado\n");
+        value.append("⚽ ").append(match);
+        if(m.homeScore>=0&&m.awayScore>=0)value.append(" · ").append(m.homeScore).append(" - ").append(m.awayScore);
+        value.append("\n🏆 ").append(m.competition.replace(" · dato de prueba",""));
+        value.append("\n📅 ").append(formatted);
+        MatchSummary summary=m.hasRealFixtureId()?store.cachedMatchSummary(m.fixtureId):null;
+        if(summary!=null&&!summary.broadcastText.trim().isEmpty())value.append("\n📺 ").append(summary.broadcastText);
+        value.append("\n\nCompartido desde Mis Partidos ⚽");
+        startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,value.toString()),"Compartir partido"));
+    }
     private void chooseNoticeForMatch(Match m){String[]labels={"Usar aviso del equipo","15 minutos antes","30 minutos antes","1 hora antes","2 horas antes"};int[]values={-1,15,30,60,120};new AlertDialog.Builder(this).setTitle("Aviso de este partido").setSingleChoiceItems(labels,-1,null).setPositiveButton("Guardar",(d,w)->{int pos=((AlertDialog)d).getListView().getCheckedItemPosition();if(pos>=0){store.saveNoticeMinutesFor(m,values[pos]);AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Aviso del partido guardado",Toast.LENGTH_SHORT).show();}}).setNegativeButton("Cancelar",null).show();}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
