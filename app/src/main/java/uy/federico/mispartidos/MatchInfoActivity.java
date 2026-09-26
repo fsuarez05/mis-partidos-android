@@ -51,6 +51,8 @@ public class MatchInfoActivity extends Activity {
 
     private void render(MatchSummary s){content.removeAllViews();addHeader();if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
         section("Contexto",valueOrFallback(s.context));section("Cómo llega "+nameOr(s.home.name,match.local()),teamText(s.home));section("Cómo llega "+nameOr(s.away.name,match.visitante()),teamText(s.away));
+        if(!s.broadcastText.trim().isEmpty())section("📺 Dónde verlo",s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry));
+        else section("📺 Dónde verlo","Transmisión no confirmada para Uruguay.");
         if(!s.news.isEmpty()){StringBuilder b=new StringBuilder();for(String n:s.news)b.append("• ").append(n).append('\n');section("Últimas novedades",trim(b));}
         if(s.absences.isEmpty())section("Bajas confirmadas","Sin bajas confirmadas\n\nEsto indica únicamente que no se encontraron bajas confirmadas.");else{StringBuilder b=new StringBuilder();for(MatchSummary.Absence a:s.absences){b.append("• ");if(!a.team.isEmpty())b.append(a.team).append(": ");b.append(a.player.isEmpty()?"Jugador sin especificar":a.player);if(!a.reason.isEmpty())b.append(" — ").append(a.reason);b.append('\n');}section("Bajas confirmadas",trim(b));}
         if(!s.sources.isEmpty()){title("Fuentes");for(MatchSummary.Source source:s.sources)addSource(source);}
@@ -67,7 +69,7 @@ public class MatchInfoActivity extends Activity {
     private String valueOrFallback(String value){return value==null||value.trim().isEmpty()?"No encontramos información reciente suficiente.":value;}
     private String nameOr(String value,String fallback){return value==null||value.trim().isEmpty()?fallback:value;}
     private String trim(StringBuilder b){return b.toString().trim();}
-    private void searchGoogle(){String day=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY")).format(new Date(match.kickoff));openUrl("https://www.google.com/search?q="+Uri.encode(match.local()+" vs "+match.visitante()+" "+day));}
+    private void searchGoogle(){String day=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY")).format(new Date(match.kickoff));String competition=match.competition==null?"":match.competition.replace(" · dato de prueba","").replace(" › "," ");openUrl("https://www.google.com/search?q="+Uri.encode((match.local()+" vs "+match.visitante()+" "+competition+" "+day).replaceAll("\\s+"," ").trim()));}
     private void openUrl(String value){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(value)));}catch(Exception e){Toast.makeText(this,"No encontré un navegador",Toast.LENGTH_LONG).show();}}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
