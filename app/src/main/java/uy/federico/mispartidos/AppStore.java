@@ -138,6 +138,8 @@ public class AppStore {
     boolean needsApiSync(){return System.currentTimeMillis()-prefs.getLong("api_last_sync",0)>43_200_000L;}
     private String montevideoDay(){SimpleDateFormat f=new SimpleDateFormat("yyyyMMdd",new Locale("es","UY"));f.setTimeZone(TimeZone.getTimeZone("America/Montevideo"));return f.format(new Date());}
     boolean needsDailyOpenSync(){return !montevideoDay().equals(prefs.getString("daily_open_sync_day",""));}
+    boolean dailySyncCompletedToday(){return montevideoDay().equals(prefs.getString("daily_sync_completed_day",""));}
+    void markDailySyncCompleted(){prefs.edit().putString("daily_sync_completed_day",montevideoDay()).apply();}
     void markDailyOpenSync(){prefs.edit().putString("daily_open_sync_day",montevideoDay()).apply();}
     boolean needsDailySummaryPrefetch(){return !montevideoDay().equals(prefs.getString("daily_summary_prefetch_day",""));}
     void markDailySummaryPrefetch(){prefs.edit().putString("daily_summary_prefetch_day",montevideoDay()).apply();}
