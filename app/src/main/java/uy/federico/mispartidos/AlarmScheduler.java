@@ -12,7 +12,8 @@ public class AlarmScheduler {
         long trigger = match.kickoff - minutesBefore * 60_000L;
         Intent i = new Intent(context, NotificationReceiver.class)
                 .putExtra("team", match.team).putExtra("opponent", match.opponent)
-                .putExtra("kickoff", match.kickoff).putExtra("minutes", minutesBefore)\n                .putExtra("match_id", match.id).putExtra("fixture_id", match.fixtureId);
+                .putExtra("kickoff", match.kickoff).putExtra("minutes", minutesBefore)
+                .putExtra("match_id", match.id).putExtra("fixture_id", match.fixtureId);
         if (match.kickoff <= System.currentTimeMillis()) return;
         if (trigger <= System.currentTimeMillis()) {
             AppStore store = new AppStore(context);

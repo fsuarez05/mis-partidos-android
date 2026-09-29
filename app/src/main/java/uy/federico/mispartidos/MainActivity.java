@@ -56,7 +56,9 @@ public class MainActivity extends Activity {
         super.onCreate(state); store = new AppStore(this);
         BackgroundSyncScheduler.schedule(this);DailySummaryScheduler.schedule(this);
         buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent());
-        boolean firstOpenToday=store.needsDailyOpenSync();\n        if(firstOpenToday) Toast.makeText(this,"Actualizando la información del día. Android no pudo completar la actualización en segundo plano.",Toast.LENGTH_LONG).show();\n        syncNow(firstOpenToday,firstOpenToday);
+        boolean firstOpenToday=store.needsDailyOpenSync();
+        if(firstOpenToday) Toast.makeText(this,"Actualizando la información del día. Android no pudo completar la actualización en segundo plano.",Toast.LENGTH_LONG).show();
+        syncNow(firstOpenToday,firstOpenToday);
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
