@@ -216,11 +216,12 @@ class ApiClient {
                 if(isNational&&isYouthOrWomenFixture(match))continue;
                 String cacheKey="goal:"+(isNational?"N:":"C:")+team;
                 String selectedId=store.apiTeamId(cacheKey);
-                boolean home=!selectedId.isEmpty()&&selectedId.equals(match.homeTeamId);
-                boolean away=!selectedId.isEmpty()&&selectedId.equals(match.awayTeamId);
+                boolean hasSelectedId=selectedId!=null&&!selectedId.isEmpty();
+                boolean home=hasSelectedId&&selectedId.equals(match.homeTeamId);
+                boolean away=hasSelectedId&&selectedId.equals(match.awayTeamId);
                 // Sólo recurrimos al nombre si aún no existe un ID resuelto, y en ese
                 // caso exigimos además el ámbito correcto para evitar homónimos.
-                if(selectedId.isEmpty()){
+                if(!hasSelectedId){
                     boolean nameHome=sameTeam(team,match.team),nameAway=sameTeam(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
