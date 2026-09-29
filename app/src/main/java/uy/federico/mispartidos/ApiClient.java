@@ -358,7 +358,22 @@ class ApiClient {
             // hasta el margen normal de duración del partido antes de archivarlo.
             if(!fixtureIsFinished(f,now,kickoff))continue;
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");boolean selected=favoriteIds.contains(homeId)||favoriteIds.contains(awayId);
-            if(!selected)for(String favorite:favorites)if(sameTeam(favorite,home)||sameTeam(favorite,away)){selected=true;break;}if(!selected)continue;
+            if(!selected){
+                String fixtureCountry=canonicalCountry(f.optString("countryName"));
+                Set<String> national=store.selectedNationalTeams();
+                for(String favorite:favorites){
+                    boolean nameMatch=sameTeam(favorite,home)||sameTeam(favorite,away);
+                    if(!nameMatch)continue;
+                    if(national.contains(favorite)){
+                        Match candidate=matchFromFixture(f,matchId(f),home,away,kickoff,-1,-1);
+                        if(isInternationalFixture(candidate)){selected=true;break;}
+                    }else{
+                        String expected=canonicalCountry(AppStore.countryForClub(favorite));
+                        if(expected.isEmpty()||expected.equals(fixtureCountry)){selected=true;break;}
+                    }
+                }
+            }
+            if(!selected)continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
             Match parsed=matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]);if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }return result;
