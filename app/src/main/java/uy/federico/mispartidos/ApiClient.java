@@ -75,7 +75,7 @@ class ApiClient {
                 int teamCount=store.selectedTeams().size()+store.selectedNationalTeams().size();
                 if(teamCount>0||!clubCompetitions.isEmpty()||!nationalCompetitions.isEmpty()){
                     try{
-                        JSONObject response=request("fixturesByDate",params("date",date,"limit","100"));
+                        JSONObject response=request("fixturesByDate",params("date",date,"limit","500"));
                         today=parseToday(response,clubCompetitions,nationalCompetitions);
                         allToday=parseAllToday(response);
                         recentResults.addAll(parseFavoriteResults(response,store));
@@ -83,12 +83,12 @@ class ApiClient {
                     try{
                         java.util.Calendar yesterday=java.util.Calendar.getInstance();yesterday.add(java.util.Calendar.DAY_OF_YEAR,-1);
                         String previousDate=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(yesterday.getTime());
-                        recentResults.addAll(parseFavoriteResults(request("fixturesByDate",params("date",previousDate,"limit","100")),store));
+                        recentResults.addAll(parseFavoriteResults(request("fixturesByDate",params("date",previousDate,"limit","500")),store));
                     }catch(Exception ignored){}
                 }
 
                 if(teamCount>0){
-                    ExecutorService pool=Executors.newFixedThreadPool(Math.min(4,teamCount));
+                    ExecutorService pool=Executors.newFixedThreadPool(Math.min(2,teamCount));
                     AtomicBoolean quotaReached=new AtomicBoolean(false);
                     for(String team:store.selectedTeams())pool.submit(()->loadTeamSafe(store,team,false,favorites,previousFavorites,failures,reasons,quotaReached));
                     for(String team:store.selectedNationalTeams())pool.submit(()->loadTeamSafe(store,team,true,favorites,previousFavorites,failures,reasons,quotaReached));
@@ -114,8 +114,26 @@ class ApiClient {
 
     private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
         if(quotaReached.get()){addPreviousTeam(previous,team,favorites);return;}
-        try{if(!loadTeam(store,team,national,favorites))addPreviousTeam(previous,team,favorites);}
-        catch(Exception e){failures.add(team);reasons.add(e.getMessage());addPreviousTeam(previous,team,favorites);if(isQuotaError(e.getMessage()))quotaReached.set(true);}
+        Exception last=null;
+        for(int attempt=0;attempt<3;attempt++){
+            try{
+                if(!loadTeam(store,team,national,favorites))addPreviousTeam(previous,team,favorites);
+                return;
+            }catch(Exception e){
+                last=e;
+                String message=String.valueOf(e.getMessage());
+                if(isQuotaError(message)){quotaReached.set(true);break;}
+                if(!isTransientApiError(message)||attempt==2)break;
+                try{Thread.sleep(1200L*(attempt+1));}catch(InterruptedException interrupted){Thread.currentThread().interrupt();break;}
+            }
+        }
+        failures.add(team);reasons.add(last==null?"Error temporal":last.getMessage());addPreviousTeam(previous,team,favorites);
+    }
+
+    private static boolean isTransientApiError(String value){
+        String n=normalize(value);
+        return n.contains("http 429")||n.contains("http 500")||n.contains("http 502")||n.contains("http 503")||n.contains("http 504")
+                ||n.contains("timeout")||n.contains("tempor")||n.contains("sin conexion");
     }
 
     private static boolean loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
