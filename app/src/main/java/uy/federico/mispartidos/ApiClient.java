@@ -152,7 +152,16 @@ class ApiClient {
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
         String action=national?"teamUpcoming":"teamFixtures";String limit=national?"20":"100";JSONArray fixtures;
         try{fixtures=apiData(request(action,params("team",teamId,"limit",limit)));}
-        catch(Exception e){if(!String.valueOf(e.getMessage()).contains("404"))throw e;store.clearApiTeamId(cacheKey);teamId=resolveTeamId(store,selectedName,national,cacheKey,true);if(teamId==null||teamId.isEmpty())throw e;fixtures=apiData(request(action,params("team",teamId,"limit",limit)));}
+        catch(Exception e){
+            String error=String.valueOf(e.getMessage());
+            // Un 400/404 con un equipo concreto suele indicar que quedó guardado
+            // un ID viejo o no válido. Lo descartamos y lo resolvemos nuevamente.
+            if(!error.contains("400")&&!error.contains("404"))throw e;
+            store.clearApiTeamId(cacheKey);
+            teamId=resolveTeamId(store,selectedName,national,cacheKey,true);
+            if(teamId==null||teamId.isEmpty())throw new Exception("No se pudo renovar el ID en GOAL API");
+            fixtures=apiData(request(action,params("team",teamId,"limit",limit)));
+        }
         List<Match> matches=parseUpcoming(fixtures,selectedName,teamId);for(Match match:matches)out.put(match.id,match);return !matches.isEmpty();
     }
 
@@ -160,7 +169,20 @@ class ApiClient {
         String teamId=force?null:store.apiTeamId(cacheKey);if(teamId!=null&&!teamId.isEmpty())return teamId;
         String searchName=national?apiCountryName(selectedName):apiSearchName(selectedName);
         Map<String,String> search=params("search",searchName,"limit","20");String savedCountry=store.apiTeamCountry(selectedName);String country=national?apiCountryName(selectedName):apiCountryName(savedCountry!=null?savedCountry:AppStore.countryForClub(selectedName));if(country!=null&&!country.isEmpty())search.put("country",country);
-        JSONArray teams=apiData(request("teams",search));JSONObject selected=selectTeam(teams,selectedName,country,national);if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}return teamId;
+        JSONArray teams=apiData(request("teams",search));JSONObject selected=selectTeam(teams,selectedName,country,national);
+        // Algunos nombres comerciales/abreviados no aparecen con la primera
+        // variante. Para clubes conocidos probamos una segunda forma sin
+        // perder la validación de país.
+        if(selected==null&&!national){
+            String alternate=alternateSearchName(selectedName);
+            if(alternate!=null&&!alternate.equalsIgnoreCase(searchName)){
+                Map<String,String> retry=params("search",alternate,"limit","50");
+                if(country!=null&&!country.isEmpty())retry.put("country",country);
+                teams=apiData(request("teams",retry));
+                selected=selectTeam(teams,alternate,country,false);
+            }
+        }
+        if(selected!=null){teamId=selected.optString("id",null);if(teamId!=null)store.saveApiTeamId(cacheKey,teamId);}return teamId;
     }
 
     static void searchTeams(Context context,String query,TeamSearchCallback callback){
@@ -524,6 +546,14 @@ class ApiClient {
         if(n.equals("copa libertadores"))return"conmebol libertadores";if(n.equals("copa sudamericana"))return"conmebol sudamericana";
         if(n.equals("fifa world cup"))return"world cup";if(n.equals("conmebol copa america"))return"copa america";
         return n;
+    }
+
+    private static String alternateSearchName(String selected){
+        if(selected==null)return null;
+        if(selected.equals("PSG"))return"Paris Saint Germain";
+        if(selected.equals("Bayern Múnich"))return"FC Bayern Munich";
+        if(selected.equals("Peñarol"))return"Penarol";
+        return apiSearchName(selected);
     }
 
     private static String apiSearchName(String selected){
