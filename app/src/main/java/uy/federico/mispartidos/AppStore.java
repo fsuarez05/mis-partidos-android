@@ -143,6 +143,8 @@ public class AppStore {
     void markDailyOpenSync(){prefs.edit().putString("daily_open_sync_day",montevideoDay()).apply();}
     boolean needsDailySummaryPrefetch(){return !montevideoDay().equals(prefs.getString("daily_summary_prefetch_day",""));}
     void markDailySummaryPrefetch(){prefs.edit().putString("daily_summary_prefetch_day",montevideoDay()).apply();}
+    void saveSyncPendingDetails(String value){prefs.edit().putString("sync_pending_details",value==null?"":value).apply();}
+    String syncPendingDetails(){return prefs.getString("sync_pending_details","");}
     long lastApiSync(){return prefs.getLong("api_last_sync",0);}
     long nextBackgroundSync(){return prefs.getLong("next_background_sync",0);}
     void saveNextBackgroundSync(long value){prefs.edit().putLong("next_background_sync",value).apply();}
