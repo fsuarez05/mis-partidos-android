@@ -104,6 +104,16 @@ class ApiClient {
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
                 recentResults=dedupeMatches(recentResults);recentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
                 store.saveApiMatches(favoriteList,today,recentResults);
+                if(failures.isEmpty())store.saveSyncPendingDetails("");
+                else{
+                    StringBuilder pending=new StringBuilder();
+                    for(int i=0;i<failures.size();i++){
+                        if(i>0)pending.append("\n");
+                        pending.append("• ").append(failures.get(i));
+                        if(i<reasons.size()&&reasons.get(i)!=null&&!reasons.get(i).trim().isEmpty())pending.append(": ").append(reasons.get(i));
+                    }
+                    store.saveSyncPendingDetails(pending.toString());
+                }
                 String message=failures.isEmpty()?"Actualizado ahora":"Actualizado con datos pendientes de "+failures.size()+(failures.size()==1?" elemento":" elementos");
                 new Handler(Looper.getMainLooper()).post(()->callback.done(true,message));
             }catch(Exception e){
