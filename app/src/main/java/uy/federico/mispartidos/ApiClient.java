@@ -544,12 +544,22 @@ class ApiClient {
                 if(expectedScope.equals("uefa")&&qualification&&(actualName.contains("uefa")||actualName.contains("europe")))return true;
                 continue;
             }
-            if(!expectedName.equals(actualName))continue;
+            // GOAL no usa siempre el mismo nombre para Nations League:
+            // puede llegar como "UEFA Nations League", "Nations League" o
+            // "UEFA Nations League A/B/C/D". Aceptamos esas variantes sin abrir
+            // el filtro a otras competiciones.
+            boolean nationsLeague=expectedName.equals("uefa nations league")
+                    && (actualName.equals("uefa nations league")
+                    ||actualName.equals("nations league")
+                    ||actualName.startsWith("uefa nations league ")
+                    ||actualName.startsWith("nations league "));
+            if(!expectedName.equals(actualName)&&!nationsLeague)continue;
             if(expectedScope.equals("uefa")){
-                // Las competiciones UEFA de selecciones pueden llegar desde GOAL
-                // con countryName Europe/International/World, mientras que el nombre
-                // de liga ya identifica inequívocamente UEFA Nations League, Euro, etc.
-                return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("europe")||actualName.contains("uefa");
+                // El nombre de una competición UEFA ya es suficiente para el ámbito:
+                // algunos fixtures llegan con countryName vacío o con el país local.
+                return actualName.contains("uefa")||nationsLeague
+                        ||actualCountry.equals("intl")||actualCountry.equals("international")
+                        ||actualCountry.equals("world")||actualCountry.equals("europe");
             }
             if(expectedScope.equals("conmebol")){
                 return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("south america")||actualName.contains("conmebol");
