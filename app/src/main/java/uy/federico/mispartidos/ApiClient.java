@@ -354,7 +354,7 @@ class ApiClient {
         names.put("united states","Estados Unidos");names.put("usa","Estados Unidos");names.put("wales","Gales");names.put("denmark","Dinamarca");
         names.put("sweden","Suecia");names.put("switzerland","Suiza");names.put("austria","Austria");names.put("poland","Polonia");
         names.put("czech republic","República Checa");names.put("turkey","Turquía");names.put("scotland","Escocia");names.put("ireland","Irlanda");
-        names.put("northern ireland","Irlanda del Norte");names.put("croatia","Croacia");names.put("serbia","Serbia");names.put("hungary","Hungría");
+        names.put("republic of ireland","Irlanda");names.put("northern ireland","Irlanda del Norte");names.put("croatia","Croacia");names.put("serbia","Serbia");names.put("hungary","Hungría");
         if(names.containsKey(n))return names.get(n);
         String automatic=COUNTRY_NAMES_ES.get(n);
         return automatic==null||automatic.isEmpty()?value:automatic;
