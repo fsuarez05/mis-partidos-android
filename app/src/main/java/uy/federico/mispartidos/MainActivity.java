@@ -94,7 +94,25 @@ public class MainActivity extends Activity {
         List<Match>results=store.recentResults();addSectionTitle("Resultados recientes · mis equipos");if(results.isEmpty()){TextView empty=text("No hay resultados recientes de tus equipos.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
     }
 
-    private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";SimpleDateFormat dayFormat=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY"));for(Match m:matches){String day=dayFormat.format(new Date(m.kickoff));if(!day.equals(lastDay)){TextView date=text(day.substring(0,1).toUpperCase(new Locale("es","UY"))+day.substring(1),13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
+    private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";for(Match m:matches){String day=matchDayLabel(m.kickoff);if(!day.equals(lastDay)){TextView date=text(day,13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
+
+    private String matchDayLabel(long kickoff){
+        ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(kickoff).atZone(zone).toLocalDate();
+        long days=ChronoUnit.DAYS.between(today,match);
+        if(days==0)return "Hoy";
+        if(days==1)return "Mañana";
+        String value=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY")).format(new Date(kickoff));
+        return value.substring(0,1).toUpperCase(new Locale("es","UY"))+value.substring(1);
+    }
+
+    private String matchDateLabel(long kickoff){
+        ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(kickoff).atZone(zone).toLocalDate();
+        long days=ChronoUnit.DAYS.between(today,match);
+        String hour=new SimpleDateFormat("HH:mm",new Locale("es","UY")).format(new Date(kickoff));
+        if(days==0)return "Hoy · "+hour;
+        if(days==1)return "Mañana · "+hour;
+        return dateFormat.format(new Date(kickoff));
+    }
 
     private void addSectionTitle(String value){TextView title=text(value,17,Color.rgb(15,23,42),true);title.setPadding(dp(4),dp(14),dp(4),dp(10));list.addView(title);}
 
@@ -110,7 +128,7 @@ public class MainActivity extends Activity {
     private View resultsTable(List<Match> matches){
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
         table.addView(todayRow("DÍA","PARTIDO","RESULTADO",true));table.addView(tableDivider());SimpleDateFormat day=new SimpleDateFormat("EEE d",new Locale("es","UY"));
-        for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false);row.setOnClickListener(v->showInfoOrGoogle(m));row.setContentDescription("Opciones para el resultado de "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false);row.setOnClickListener(v->showFinishedActions(m));row.setContentDescription("Opciones para el resultado de "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
@@ -131,7 +149,7 @@ public class MainActivity extends Activity {
         boolean bothFavorites=isFavorite(m.team)&&isFavorite(m.opponent);
         String matchLabel=m.team + "  vs.  " + m.opponent;
         TextView team = text(bothFavorites?matchLabel:m.team,18,Color.rgb(15,23,42),true); TextView versus = text(matchLabel,16,Color.rgb(30,41,59),false);
-        TextView date = text(dateFormat.format(new Date(m.kickoff)),19,Color.rgb(180,120,0),true);
+        TextView date = text(matchDateLabel(m.kickoff),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
         TextView countdown=text(matchTiming(m),13,AppStore.isInProgress(m)?Color.rgb(190,24,24):Color.rgb(37,99,235),true);
         content.addView(team); if(!m.opponent.isEmpty()&&!bothFavorites)content.addView(versus); content.addView(date);content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
@@ -343,6 +361,7 @@ public class MainActivity extends Activity {
     private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(m.kickoff).atZone(zone).toLocalDate();long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}
     private void showMatchActions(Match m){if(AppStore.isInProgress(m)){String[]items={"Ver información del partido","Buscar partido en Google","Compartir partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();return;}String[]items={"Ver información del partido","Buscar partido en Google","Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else if(pos==2)addToCalendar(m);else if(pos==3)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void showInfoOrGoogle(Match m){String[]items={"Ver información del partido","Buscar en Google"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else searchMatchOnGoogle(m);}).setNegativeButton("Cerrar",null).show();}
+    private void showFinishedActions(Match m){String[]items={"Buscar partido en Google","Compartir resultado"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void openMatchInfo(Match m){if(!m.hasRealFixtureId()){new AlertDialog.Builder(this).setTitle("Información del partido").setMessage("Falta actualizar los datos de este partido para obtener su identificación real.").setPositiveButton("Actualizar partidos",(d,w)->syncNow(true)).setNeutralButton("Buscar en Google",(d,w)->searchMatchOnGoogle(m)).setNegativeButton("Cerrar",null).show();return;}try{Intent i=new Intent(this,MatchInfoActivity.class);i.putExtra("match",m.toJson().toString());startActivity(i);}catch(Exception e){Toast.makeText(this,"No pudimos abrir la información del partido",Toast.LENGTH_LONG).show();}}
     private void searchMatchOnGoogle(Match m){
         String game=m.opponent.isEmpty()?m.team:m.team+" vs "+m.opponent;
