@@ -421,8 +421,13 @@ class ApiClient {
                         Match candidate=matchFromFixture(f,matchId(f),home,away,kickoff,-1,-1);
                         if(isInternationalFixture(candidate)){selected=true;break;}
                     }else{
+                        // Para clubes no alcanza con que coincida el nombre y el país.
+                        // Si ya tenemos un ID resuelto, sólo ese ID puede identificar al
+                        // favorito (evita Arsenal FC de otra liga/país).
+                        String knownId=store.apiTeamId("goal:C:"+favorite);
+                        if(knownId!=null&&!knownId.isEmpty())continue;
                         String expected=canonicalCountry(AppStore.countryForClub(favorite));
-                        if(expected.isEmpty()||expected.equals(fixtureCountry)){selected=true;break;}
+                        if(!expected.isEmpty()&&expected.equals(fixtureCountry)){selected=true;break;}
                     }
                 }
             }
@@ -434,10 +439,12 @@ class ApiClient {
 
     private static boolean fixtureIsFinished(JSONObject f,long now,long kickoff){
         String status=normalize(f.optString("status")+" "+f.optString("state")+" "+f.optString("statusName")+" "+f.optString("fixtureStatus"));
-        if(status.contains("finished")||status.contains("full time")||status.equals("ft")||status.contains("after penalties")||status.contains("after extra time")||status.contains("ended")||status.contains("final"))return true;
+        // No usar contains("final"): "Final", "Quarter Finals", etc. también
+        // pueden ser la fase del torneo y GOAL puede incluirla en estos campos.
+        if(status.contains("finished")||status.contains("full time")||status.equals("ft")||status.contains("after penalties")||status.contains("after extra time")||status.contains("ended")||status.equals("final"))return true;
         if(status.contains("live")||status.contains("playing")||status.contains("in progress")||status.contains("half time")||status.contains("halftime")||status.contains("1st half")||status.contains("2nd half"))return false;
-        // Respaldo para proveedores que entregan marcador pero no estado.
-        return now>=kickoff+AppStore.MATCH_DURATION_MS;
+        // Nunca inferir finalizado sólo por tiempo si el partido todavía no empezó.
+        return kickoff<=now&&now>=kickoff+AppStore.MATCH_DURATION_MS;
     }
 
     private static int[] scoreOf(JSONObject f){
