@@ -162,7 +162,27 @@ class ApiClient {
             if(teamId==null||teamId.isEmpty())throw new Exception("No se pudo renovar el ID en GOAL API");
             fixtures=apiData(request(action,params("team",teamId,"limit",limit)));
         }
+        // Un ID persistido puede seguir siendo válido para GOAL pero pertenecer a
+        // otro equipo. Si la respuesta está vacía o ningún fixture contiene ese ID,
+        // lo descartamos y resolvemos nuevamente una sola vez.
+        if(!fixturesBelongToTeam(fixtures,teamId)){
+            store.clearApiTeamId(cacheKey);
+            String renewedId=resolveTeamId(store,selectedName,national,cacheKey,true);
+            if(renewedId!=null&&!renewedId.isEmpty()&&!renewedId.equals(teamId)){
+                teamId=renewedId;
+                fixtures=apiData(request(action,params("team",teamId,"limit",limit)));
+            }
+        }
         List<Match> matches=parseUpcoming(fixtures,selectedName,teamId);for(Match match:matches)out.put(match.id,match);return !matches.isEmpty();
+    }
+
+    private static boolean fixturesBelongToTeam(JSONArray fixtures,String teamId){
+        if(fixtures==null||fixtures.length()==0)return false;
+        for(int i=0;i<fixtures.length();i++){
+            JSONObject f=fixtures.optJSONObject(i);if(f==null)continue;
+            if(teamId.equals(f.optString("homeTeamId"))||teamId.equals(f.optString("awayTeamId")))return true;
+        }
+        return false;
     }
 
     private static String resolveTeamId(AppStore store,String selectedName,boolean national,String cacheKey,boolean force)throws Exception{
@@ -233,15 +253,16 @@ class ApiClient {
     private static int leagueRank(String name){String n=normalize(name);if(n.contains("premier league")||n.equals("la liga")||n.equals("serie a")||n.equals("bundesliga")||n.equals("ligue 1")||n.contains("primeira liga")||n.contains("primera division"))return 0;if(n.contains("segunda")||n.contains("ligue 2")||n.contains("serie b")||n.contains("championship")||n.contains("2 bundesliga"))return 1;return 2;}
 
     private static JSONObject selectTeam(JSONArray teams,String selectedName,String expectedCountry,boolean national){
-        JSONObject fallback=null;String wanted=normalize(national?apiCountryName(selectedName):apiSearchName(selectedName));
+        String wanted=normalize(national?apiCountryName(selectedName):apiSearchName(selectedName));
         for(int i=0;i<teams.length();i++){
             JSONObject team=teams.optJSONObject(i);if(team==null)continue;
             String name=normalize(team.optString("name")),country=canonicalCountry(team.optString("country"));
             boolean rightCountry=expectedCountry==null||canonicalCountry(expectedCountry).equals(country);
-            if(fallback==null&&rightCountry)fallback=team;
             if(rightCountry&&(name.equals(wanted)||name.contains(wanted)||wanted.contains(name)))return team;
         }
-        return fallback;
+        // Nunca guardar simplemente el primer equipo del país: ese fallback podía
+        // persistir un ID válido pero de otro club y dejar el favorito bloqueado.
+        return null;
     }
 
     private static List<Match> parseUpcoming(JSONArray data,String selectedName,String selectedId)throws Exception{
@@ -436,6 +457,10 @@ class ApiClient {
             JSONObject f=data.getJSONObject(i);String competition=competitionName(f),country=f.optString("countryName");
             if(filterCompetitions&&!competitionSelected(competition,country,clubCups,nationalCups))continue;
             long kickoff=parseKickoff(f);if(kickoff<cutoff)continue;
+            // Los finalizados pertenecen a Resultados recientes. No deben seguir
+            // apareciendo como partidos de hoy ni entrar al prefetch automático
+            // de información previa.
+            if(fixtureIsFinished(f,System.currentTimeMillis(),kickoff))continue;
             Match parsed=matchFromFixture(f,matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),kickoff,-1,-1);
             if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }
