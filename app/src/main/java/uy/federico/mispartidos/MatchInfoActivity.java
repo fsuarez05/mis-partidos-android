@@ -31,7 +31,7 @@ public class MatchInfoActivity extends Activity {
     private boolean loading;
     private MatchSummary lastSummary;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);try{match=Match.fromJson(new JSONObject(getIntent().getStringExtra("match")));}catch(Exception e){finish();return;}build();lastSummary=new AppStore(this).cachedMatchSummary(match.fixtureId);if(lastSummary!=null)render(lastSummary);load(false);}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);try{match=Match.fromJson(new JSONObject(getIntent().getStringExtra("match")));}catch(Exception e){finish();return;}build();lastSummary=new AppStore(this).cachedMatchSummary(match.fixtureId);if(lastSummary!=null)render(lastSummary);else load(false);}
 
     private void build(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(248,250,252));
