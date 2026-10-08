@@ -57,7 +57,7 @@ public class MainActivity extends Activity {
         BackgroundSyncScheduler.schedule(this);DailySummaryScheduler.schedule(this);
         buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent());
         boolean firstOpenToday=store.needsDailyOpenSync();
-        if(firstOpenToday) Toast.makeText(this,"Actualizando la información del día. Android no pudo completar la actualización en segundo plano.",Toast.LENGTH_LONG).show();
+        if(firstOpenToday && !store.dailySyncCompletedToday()) Toast.makeText(this,"Actualizando los partidos del día…",Toast.LENGTH_SHORT).show();
         syncNow(firstOpenToday,firstOpenToday);
     }
 
