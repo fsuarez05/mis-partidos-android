@@ -189,9 +189,41 @@ public class MainActivity extends Activity {
     private String selectionSummaryShort(Set<String> values){Set<String>shorts=new LinkedHashSet<>();for(String v:values)shorts.add(AppStore.shortName(v));return selectionSummary(shorts);}
 
     private void showTeamExplorer(String title,String[]all,Set<String>initial,boolean national,SelectionDone done,Runnable back){
-        Set<String>chosen=new LinkedHashSet<>(initial);String[]menu=national?new String[]{"🔎 Buscar cualquier selección (API)","★ Seleccionadas ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"}:new String[]{"🔎 Buscar cualquier club (API)","★ Seleccionados ("+chosen.size()+")","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía"};
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setItems(menu,(d,pos)->{if(pos==0)showApiTeamSearch(title,chosen,national,done,()->showTeamExplorer(title,all,chosen,national,done,back));else if(pos==1)showTeamSubset(title,all,chosen,chosen,national,done,back,()->showTeamExplorer(title,all,chosen,national,done,back));else{String region=menu[pos].substring(menu[pos].indexOf(' ')+1);if(national)showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back,()->showTeamExplorer(title,all,chosen,true,done,back));else chooseClubCountry(title,all,region,chosen,done,back);}}).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+        Set<String> chosen=new LinkedHashSet<>(initial);
+        LinearLayout panel=explorerPanel();
+        TextView info=text("Seleccionados: "+chosen.size()+" · Tocá un continente para desplegarlo",14,Color.DKGRAY,false);
+        panel.addView(info);
+        explorerAction(panel,"🔎 Buscar "+(national?"selección":"club")+" en GOAL API",()->showApiTeamSearch(title,chosen,national,done,()->showTeamExplorer(title,all,chosen,national,done,back)));
+        explorerAction(panel,"★ Ver seleccionados ("+chosen.size()+")",()->showTeamSubset(title,all,chosen,chosen,national,done,back,()->showTeamExplorer(title,all,chosen,national,done,back)));
+        String[]regions={"América del Sur","Europa","Norteamérica","África","Asia","Oceanía"};
+        for(String region:regions){
+            LinearLayout children=explorerChildren(panel);
+            int count=0;for(String team:chosen)if(region.equals(national?AppStore.continentForNational(team):AppStore.continentForClub(team)))count++;
+            Button heading=explorerHeading(panel,region+" · "+count+" seleccionados",children);
+            if(national){
+                explorerAction(children,"Ver selecciones de "+region,()->showTeamSubset(title,all,teamsInRegion(all,region,true),chosen,true,done,back,()->showTeamExplorer(title,all,chosen,true,done,back)));
+            }else{
+                for(String country:clubCountries(region)){
+                    int selected=0;for(String team:chosen)if(country.equals(store.apiTeamCountry(team))||country.equals(AppStore.countryForClub(team)))selected++;
+                    explorerAction(children,country+(selected>0?" · "+selected+" ✓":""),()->loadCountryLeagues(title,all,region,country,chosen,done,back));
+                }
+            }
+        }
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(explorerScroll(panel))
+            .setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen)))
+            .setNegativeButton("Volver",(d,w)->back.run()).create();
+        dialog.setOnCancelListener(d->back.run());dialog.show();
     }
+
+    private LinearLayout explorerPanel(){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(16),dp(10),dp(16),dp(12));return panel;}
+    private ScrollView explorerScroll(LinearLayout panel){ScrollView scroll=new ScrollView(this);scroll.addView(panel);return scroll;}
+    private LinearLayout explorerChildren(LinearLayout parent){LinearLayout child=new LinearLayout(this);child.setOrientation(LinearLayout.VERTICAL);child.setPadding(dp(14),0,0,dp(8));child.setVisibility(View.GONE);parent.addView(child);return child;}
+    private Button explorerHeading(LinearLayout parent,String label,LinearLayout children){
+        Button button=button("▸ "+label);button.setAllCaps(false);button.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        button.setOnClickListener(v->{boolean expand=children.getVisibility()!=View.VISIBLE;children.setVisibility(expand?View.VISIBLE:View.GONE);button.setText((expand?"▾ ":"▸ ")+label);});
+        parent.addView(button,new LinearLayout.LayoutParams(-1,-2));return button;
+    }
+    private void explorerAction(LinearLayout parent,String label,Runnable action){Button button=button(label);button.setAllCaps(false);button.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);button.setOnClickListener(v->action.run());parent.addView(button,new LinearLayout.LayoutParams(-1,-2));}
 
     private void showApiTeamSearch(String title,Set<String>initial,boolean national,SelectionDone done,Runnable back){
         Set<String>chosen=new LinkedHashSet<>(initial);LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(18),0,dp(18),0);
@@ -258,16 +290,28 @@ public class MainActivity extends Activity {
     }
 
     private void showCompetitionMenu(String title,String[]all,Set<String>suggested,Set<String>chosen,boolean selections,SelectionDone done,Runnable back){
-        String[]menu=selections?new String[]{"★ Sugeridas ("+suggested.size()+")","🏆 Continentales","🌎 América del Sur","🌍 Europa","🌐 Mundo"}:new String[]{"★ Sugeridas ("+suggested.size()+")","🏆 Continentales","🌎 América del Sur","🌍 Europa","🌎 Norteamérica","🌍 África","🌏 Asia","🌏 Oceanía","🌐 Mundo"};
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title+" · "+chosen.size()+" elegidas").setItems(menu,(d,pos)->{
-            if(pos==0)showCompetitionSubset(title,all,suggested,suggested,chosen,selections,done,back);
-            else if(pos==1)showCompetitionSubset(title,all,filter(all,"CONMEBOL","UEFA"),suggested,chosen,selections,done,back);
-            else if(selections&&pos==2)showCompetitionSubset(title,all,filter(all,"América del Sur"),suggested,chosen,true,done,back);
-            else if(selections&&pos==3)showCompetitionSubset(title,all,filter(all,"Europa"),suggested,chosen,true,done,back);
-            else if(selections)showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,true,done,back);
-            else if(pos==8)showCompetitionSubset(title,all,filter(all,"Mundo"),suggested,chosen,false,done,back);
-            else{String[]regions={"América del Sur","Europa","Norteamérica","África","Asia","Oceanía"};chooseApiCompetitionCountry(title,all,regions[pos-2],suggested,chosen,done,back);}
-        }).setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen))).setNegativeButton("Volver",(d,w)->back.run()).create();dialog.setOnCancelListener(d->back.run());dialog.show();
+        LinearLayout panel=explorerPanel();
+        panel.addView(text("Elegidas: "+chosen.size()+" · Desplegá una categoría",14,Color.DKGRAY,false));
+        explorerAction(panel,"★ Sugeridas ("+suggested.size()+")",()->showCompetitionSubset(title,all,suggested,suggested,chosen,selections,done,back));
+        explorerAction(panel,"🏆 Continentales",()->showCompetitionSubset(title,all,filter(all,"CONMEBOL","UEFA"),suggested,chosen,selections,done,back));
+        String[]regions=selections?new String[]{"América del Sur","Europa","Mundo"}:new String[]{"América del Sur","Europa","Norteamérica","África","Asia","Oceanía","Mundo"};
+        for(String region:regions){
+            LinearLayout children=explorerChildren(panel);
+            int selected=0;for(String cup:chosen)if(cup.contains(region))selected++;
+            explorerHeading(panel,region+" · "+selected+" elegidas",children);
+            if(selections||region.equals("Mundo")){
+                explorerAction(children,"Ver competiciones de "+region,()->showCompetitionSubset(title,all,filter(all,region),suggested,chosen,selections,done,back));
+            }else{
+                for(String country:clubCountries(region)){
+                    int count=0;for(String cup:chosen)if(cup.contains(" › "+country+" › "))count++;
+                    explorerAction(children,country+(count>0?" · "+count+" ✓":""),()->loadApiCompetitions(title,all,region,country,suggested,chosen,done,back));
+                }
+            }
+        }
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(explorerScroll(panel))
+            .setPositiveButton("Listo",(d,w)->done.run(new LinkedHashSet<>(chosen)))
+            .setNegativeButton("Volver",(d,w)->back.run()).create();
+        dialog.setOnCancelListener(d->back.run());dialog.show();
     }
 
     private void chooseApiCompetitionCountry(String title,String[]all,String continent,Set<String>suggested,Set<String>chosen,SelectionDone done,Runnable back){
