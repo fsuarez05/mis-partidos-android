@@ -68,7 +68,8 @@ class ApiClient {
                 Map<Long,Match> favorites=new ConcurrentHashMap<>();
                 Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
                 List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
-                List<Match> today=new ArrayList<>(),allToday=new ArrayList<>(),recentResults=new ArrayList<>();
+                List<Match> today=new ArrayList<>(),allToday=new ArrayList<>();
+                List<Match> recentResults=Collections.synchronizedList(new ArrayList<>());
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
                 Set<String> clubCompetitions=store.selectedClubCompetitions();
                 Set<String> nationalCompetitions=store.selectedNationalCompetitions();
@@ -90,8 +91,8 @@ class ApiClient {
                 if(teamCount>0){
                     ExecutorService pool=Executors.newFixedThreadPool(Math.min(2,teamCount));
                     AtomicBoolean quotaReached=new AtomicBoolean(false);
-                    for(String team:store.selectedTeams())pool.submit(()->loadTeamSafe(store,team,false,favorites,previousFavorites,failures,reasons,quotaReached));
-                    for(String team:store.selectedNationalTeams())pool.submit(()->loadTeamSafe(store,team,true,favorites,previousFavorites,failures,reasons,quotaReached));
+                    for(String team:store.selectedTeams())pool.submit(()->loadTeamSafe(store,team,false,favorites,previousFavorites,recentResults,failures,reasons,quotaReached));
+                    for(String team:store.selectedNationalTeams())pool.submit(()->loadTeamSafe(store,team,true,favorites,previousFavorites,recentResults,failures,reasons,quotaReached));
                     pool.shutdown();
                     if(!pool.awaitTermination(90,TimeUnit.SECONDS))pool.shutdownNow();
                 }
@@ -102,6 +103,9 @@ class ApiClient {
                 today=reconcileTodayFavorites(store,today,favorites);
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
+                // Conservar resultados recientes válidos si la consulta diaria vino incompleta.
+                long recentCutoff=System.currentTimeMillis()-48L*60L*60L*1000L;
+                for(Match old:store.recentResults())if(old.kickoff>=recentCutoff&&old.kickoff<=System.currentTimeMillis()&&old.homeScore>=0&&old.awayScore>=0)recentResults.add(old);
                 recentResults=dedupeMatches(recentResults);recentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
                 store.saveApiMatches(favoriteList,today,recentResults);
                 if(failures.isEmpty())store.saveSyncPendingDetails("");
@@ -122,12 +126,12 @@ class ApiClient {
         }).start();
     }
 
-    private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
+    private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<Match> recentResults,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
         if(quotaReached.get()){addPreviousTeam(previous,team,favorites);return;}
         Exception last=null;
         for(int attempt=0;attempt<3;attempt++){
             try{
-                if(!loadTeam(store,team,national,favorites))addPreviousTeam(previous,team,favorites);
+                if(!loadTeam(store,team,national,favorites,recentResults))addPreviousTeam(previous,team,favorites);
                 return;
             }catch(Exception e){
                 last=e;
@@ -146,7 +150,7 @@ class ApiClient {
                 ||n.contains("timeout")||n.contains("tempor")||n.contains("sin conexion");
     }
 
-    private static boolean loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out)throws Exception{
+    private static boolean loadTeam(AppStore store,String selectedName,boolean national,Map<Long,Match> out,List<Match> recentResults)throws Exception{
         String cacheKey="goal:"+(national?"N:":"C:")+selectedName;
         String teamId=resolveTeamId(store,selectedName,national,cacheKey,false);
         if(teamId==null||teamId.isEmpty())throw new Exception("No se encontró el equipo en GOAL API");
@@ -173,7 +177,25 @@ class ApiClient {
                 fixtures=apiData(request(action,params("team",teamId,"limit",limit)));
             }
         }
+        // Reutilizar la respuesta de cada equipo para resultados: sin llamadas extra a GOAL.
+        recentResults.addAll(parseFavoriteResultsFromTeam(fixtures,teamId));
         List<Match> matches=parseUpcoming(fixtures,selectedName,teamId);for(Match match:matches)out.put(match.id,match);return !matches.isEmpty();
+    }
+
+    private static List<Match> parseFavoriteResultsFromTeam(JSONArray fixtures,String teamId){
+        List<Match> results=new ArrayList<>();long now=System.currentTimeMillis();
+        long cutoff=now-48L*60L*60L*1000L;
+        for(int i=0;i<fixtures.length();i++){
+            JSONObject f=fixtures.optJSONObject(i);if(f==null)continue;
+            if(!teamId.equals(f.optString("homeTeamId"))&&!teamId.equals(f.optString("awayTeamId")))continue;
+            long kickoff=parseKickoff(f);
+            if(kickoff<cutoff||kickoff>now||!fixtureIsFinished(f,now,kickoff))continue;
+            int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
+            String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
+            Match match=matchFromFixture(f,matchId(f),home,away,kickoff,score[0],score[1]);
+            if(!isYouthOrWomenFixture(match))results.add(match);
+        }
+        return results;
     }
 
     private static boolean fixturesBelongToTeam(JSONArray fixtures,String teamId){
