@@ -69,7 +69,7 @@ class ApiClient {
                 Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
                 List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
                 List<Match> today=new ArrayList<>(),allToday=new ArrayList<>();
-                List<Match> recentResults=Collections.synchronizedList(new ArrayList<>());
+                final List<Match> recentResults=Collections.synchronizedList(new ArrayList<>());
                 String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
                 Set<String> clubCompetitions=store.selectedClubCompetitions();
                 Set<String> nationalCompetitions=store.selectedNationalCompetitions();
@@ -106,8 +106,8 @@ class ApiClient {
                 // Conservar resultados recientes válidos si la consulta diaria vino incompleta.
                 long recentCutoff=System.currentTimeMillis()-48L*60L*60L*1000L;
                 for(Match old:store.recentResults())if(old.kickoff>=recentCutoff&&old.kickoff<=System.currentTimeMillis()&&old.homeScore>=0&&old.awayScore>=0)recentResults.add(old);
-                recentResults=dedupeMatches(recentResults);recentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
-                store.saveApiMatches(favoriteList,today,recentResults);
+                List<Match> uniqueRecentResults=dedupeMatches(recentResults);uniqueRecentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
+                store.saveApiMatches(favoriteList,today,uniqueRecentResults);
                 if(failures.isEmpty())store.saveSyncPendingDetails("");
                 else{
                     StringBuilder pending=new StringBuilder();
@@ -188,7 +188,7 @@ class ApiClient {
         for(int i=0;i<fixtures.length();i++){
             JSONObject f=fixtures.optJSONObject(i);if(f==null)continue;
             if(!teamId.equals(f.optString("homeTeamId"))&&!teamId.equals(f.optString("awayTeamId")))continue;
-            long kickoff=parseKickoff(f);
+            long kickoff;try{kickoff=parseKickoff(f);}catch(Exception ignored){continue;}
             if(kickoff<cutoff||kickoff>now||!fixtureIsFinished(f,now,kickoff))continue;
             int[]score=scoreOf(f);if(score[0]<0||score[1]<0)continue;
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
