@@ -87,7 +87,16 @@ public class MainActivity extends Activity {
         if(!playing.isEmpty()){addSectionTitle("🔴 Jugando ahora");for(Match m:playing)list.addView(matchCard(m));}
         addSectionTitle("Próximos de mis equipos");
         if(future.isEmpty()){TextView empty=text("No hay próximos partidos.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else addFavoriteMatchesByDate(future);
-        List<Match>todayPlaying=new ArrayList<>(),todayFuture=new ArrayList<>();for(Match m:store.todayByCompetitions())if(AppStore.isInProgress(m))todayPlaying.add(m);else todayFuture.add(m);
+        List<Match>todayPlaying=new ArrayList<>(),todayFuture=new ArrayList<>();
+        List<Match>favoriteVisible=new ArrayList<>(playing);favoriteVisible.addAll(future);
+        for(Match m:store.todayByCompetitions()){
+            boolean alreadyShown=false;
+            for(Match favorite:favoriteVisible){
+                if(sameFixtureForDisplay(m,favorite)){alreadyShown=true;break;}
+            }
+            if(alreadyShown)continue;
+            if(AppStore.isInProgress(m))todayPlaying.add(m);else todayFuture.add(m);
+        }
         if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
@@ -115,6 +124,15 @@ public class MainActivity extends Activity {
     }
 
     private void addSectionTitle(String value){TextView title=text(value,17,Color.rgb(15,23,42),true);title.setPadding(dp(4),dp(14),dp(4),dp(10));list.addView(title);}
+
+    private boolean sameFixtureForDisplay(Match a,Match b){
+        if(a.fixtureId!=null&&b.fixtureId!=null&&!a.fixtureId.isEmpty()&&a.fixtureId.equals(b.fixtureId))return true;
+        if(Math.abs(a.kickoff-b.kickoff)>10L*60L*1000L)return false;
+        String ah=a.local(),aa=a.visitante(),bh=b.local(),ba=b.visitante();
+        return (displayTeamKey(ah).equals(displayTeamKey(bh))&&displayTeamKey(aa).equals(displayTeamKey(ba)))
+            ||(displayTeamKey(ah).equals(displayTeamKey(ba))&&displayTeamKey(aa).equals(displayTeamKey(bh)));
+    }
+    private String displayTeamKey(String value){return value==null?"":java.text.Normalizer.normalize(value.toLowerCase(Locale.ROOT),java.text.Normalizer.Form.NFD).replaceAll("\\p{M}","").replaceAll("[^a-z0-9]","");}
 
     private View todayTable(List<Match> matches){
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));
