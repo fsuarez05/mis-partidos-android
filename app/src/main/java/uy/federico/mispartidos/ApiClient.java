@@ -575,7 +575,9 @@ class ApiClient {
                     ||actualName.equals("nations league")
                     ||actualName.startsWith("uefa nations league ")
                     ||actualName.startsWith("nations league "));
-            if(!expectedName.equals(actualName)&&!nationsLeague)continue;
+            boolean conmebolAlias=(expectedName.contains("libertadores")&&actualName.contains("libertadores"))
+                    ||(expectedName.contains("sudamericana")&&actualName.contains("sudamericana"));
+            if(!expectedName.equals(actualName)&&!nationsLeague&&!conmebolAlias)continue;
             if(expectedScope.equals("uefa")){
                 // El nombre de una competición UEFA ya es suficiente para el ámbito:
                 // algunos fixtures llegan con countryName vacío o con el país local.
@@ -584,7 +586,7 @@ class ApiClient {
                         ||actualCountry.equals("world")||actualCountry.equals("europe");
             }
             if(expectedScope.equals("conmebol")){
-                return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("south america")||actualName.contains("conmebol");
+                return actualCountry.equals("intl")||actualCountry.equals("world")||actualCountry.equals("south america")||actualName.contains("conmebol")||conmebolAlias;
             }
             if(expectedScope.equals("fifa"))return actualCountry.equals("intl")||actualCountry.equals("world")||actualName.contains("fifa")||actualName.equals("world cup");
             if(expectedScope.equals(actualCountry))return true;
