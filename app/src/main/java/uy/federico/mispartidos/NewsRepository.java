@@ -61,7 +61,7 @@ final class NewsRepository {
         for(String team:store.selectedTeams())all.add(new TeamQuery(team,false));
         for(String team:store.selectedNationalTeams())all.add(new TeamQuery(team,true));
         Collections.sort(all,(a,b)->a.name.compareToIgnoreCase(b.name));
-        if(all.isEmpty()){post(callback,old,false,"Elegí al menos un club o selección para ver noticias.");return;}
+        if(all.isEmpty()){post(callback,new ArrayList<>(),false,"Elegí al menos un club o selección para ver noticias.");return;}
 
         int start=Math.floorMod(prefs.getInt("news_query_cursor",0),all.size());
         int count=Math.min(MAX_QUERIES,all.size());
@@ -86,7 +86,8 @@ final class NewsRepository {
         }
 
         List<NewsItem> merged=new ArrayList<>(downloaded);
-        for(NewsItem item:old)if(!refreshedTeams.contains(item.team))merged.add(item);
+        Set<String> activeTeams=new HashSet<>();for(TeamQuery team:all)activeTeams.add(team.name);
+        for(NewsItem item:old)if(activeTeams.contains(item.team)&&!refreshedTeams.contains(item.team))merged.add(item);
         merged=dedupe(merged);
         saveCache(merged);
         String message=failures.isEmpty()?"Noticias actualizadas":("Actualización parcial. Sin respuesta para "+failures.size()+" equipo"+(failures.size()==1?".":"s."));
@@ -120,7 +121,7 @@ final class NewsRepository {
                     }
                 }else if(event==XmlPullParser.END_TAG&&"item".equals(parser.getName())){
                     inItem=false;long published=parseDate(date);
-                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
+                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published) && !historicalHeadline(title))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
                 }
                 event=parser.next();
             }
@@ -174,11 +175,25 @@ final class NewsRepository {
         return preview && System.currentTimeMillis()-published>24L*60L*60L*1000L;
     }
 
+    private boolean historicalHeadline(String title){
+        String n=normalize(title);int year=java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+        java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\b(20[0-9]{2})\\b").matcher(n);
+        while(m.find())if(Integer.parseInt(m.group(1))<year-1)return true;
+        return false;
+    }
+
+    private int priority(NewsItem item){
+        String n=normalize(item.title);int score=0;
+        if(n.contains("fichaje")||n.contains("traspaso")||n.contains("lesion")||n.contains("sancion")||n.contains("renovacion")||n.contains("convocados")||n.contains("entrenador")||n.contains("tecnico")||n.contains("declaraciones"))score+=3;
+        if(n.contains("donde ver")||n.contains("como ver")||n.contains("a que hora")||n.contains("posibles alineaciones")||n.contains("probables alineaciones")||n.contains("en vivo")||n.contains("pronostico")||n.contains("apuestas"))score-=3;
+        return score;
+    }
+
     private List<NewsItem> dedupe(List<NewsItem> values){
-        Collections.sort(values,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
+        Collections.sort(values,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
         LinkedHashMap<String,NewsItem> unique=new LinkedHashMap<>();
         for(NewsItem item:values){
-            if(item.publishedAt<=0 || item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS || item.publishedAt>System.currentTimeMillis()+60L*60L*1000L || expiredPreview(item.title,item.publishedAt))continue;
+            if(item.publishedAt<=0 || item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS || item.publishedAt>System.currentTimeMillis()+60L*60L*1000L || expiredPreview(item.title,item.publishedAt) || historicalHeadline(item.title))continue;
             String key=normalize(item.title).replaceAll("\\b(el|la|los|las|un|una|de|del|y|en)\\b","").replaceAll("\\s+"," ").trim();
             if(!key.isEmpty()&&!unique.containsKey(key))unique.put(key,item);
             if(unique.size()>=MAX_TOTAL)break;
@@ -192,8 +207,8 @@ final class NewsRepository {
 
     private List<NewsItem> readCache(){
         List<NewsItem> result=new ArrayList<>();
-        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt))result.add(item);}}catch(Exception ignored){}
-        Collections.sort(result,(a,b)->Long.compare(b.publishedAt,a.publishedAt));return result;
+        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title))result.add(item);}}catch(Exception ignored){}
+        Collections.sort(result,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});return result;
     }
 
     private void saveCache(List<NewsItem> items){
