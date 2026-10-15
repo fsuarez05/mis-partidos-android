@@ -182,15 +182,30 @@ final class NewsRepository {
 
     private boolean expiredPreview(String title,long published){
         String n=normalize(title);
-        boolean preview=n.contains("donde ver")||n.contains("como ver")||n.contains("a que hora")||n.contains("que canal")||n.contains("transmision en vivo")||n.contains("posibles alineaciones")||n.contains("probables alineaciones")||n.contains("formaciones probables")||n.contains("previa del partido")||n.contains("horario y tv");
-        // Sin un vínculo fiable con el fixture, las previas vencen a las 24 horas.
-        return preview && System.currentTimeMillis()-published>24L*60L*60L*1000L;
+        boolean preview=n.contains("donde ver")||n.contains("como ver")||n.contains("donde mirar")||
+            n.contains("a que hora")||n.contains("que canal")||n.contains("transmision en vivo")||
+            n.contains("posibles alineaciones")||n.contains("probables alineaciones")||
+            n.contains("alineaciones probables")||n.contains("posible once")||
+            n.contains("once probable")||n.contains("formaciones probables")||
+            n.contains("previa del partido")||n.contains("horario y tv")||
+            n.contains("horario canal")||n.contains("como seguir en vivo")||
+            n.contains("pronostico del partido");
+        // El RSS no incluye la fecha del encuentro: caducidad prudente basada en publicación.
+        return preview&&System.currentTimeMillis()-published>18L*60L*60L*1000L;
     }
 
     private boolean historicalHeadline(String title){
-        String n=normalize(title);int year=java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+        String n=normalize(title);
+        int year=java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
         java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\b(20[0-9]{2})\\b").matcher(n);
-        while(m.find())if(Integer.parseInt(m.group(1))<year-1)return true;
+        while(m.find()){
+            int mentioned=Integer.parseInt(m.group(1));
+            // Un año antiguo por sí solo puede ser contexto de una noticia nueva.
+            // Solo descartar si el titular se presenta como archivo o efeméride.
+            if(mentioned<year-1&&(n.contains("archivo")||n.contains("hemeroteca")||
+                n.contains("un dia como hoy")||n.contains("recordamos")||
+                n.contains("hace anos")||n.contains("retro")||n.contains("historico")))return true;
+        }
         return false;
     }
 
@@ -249,7 +264,7 @@ final class NewsRepository {
     private List<NewsItem> readCache(){
         List<NewsItem> result=new ArrayList<>();
         try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title))result.add(item);}}catch(Exception ignored){}
-        Collections.sort(result,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});return result;
+        return dedupe(result);
     }
 
     private void saveCache(List<NewsItem> items){
