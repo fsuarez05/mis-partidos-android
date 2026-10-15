@@ -225,7 +225,7 @@ final class NewsRepository {
            n.contains("sub17")||n.contains("u19 ")||n.contains("u17 ")||
            n.contains("juvenil femenino"))return true;
         // Los marcadores y fichas automáticas no son artículos periodísticos.
-        if(n.matches(".*\\\\bvs?\\\\.?\\\\s+.*") &&
+        if((n.contains(" vs ")||n.contains(" versus ")) &&
            (src.contains("tudn")||src.contains("espn")) &&
            !n.contains("analisis")&&!n.contains("cronica")&&!n.contains("goles")&&
            !n.contains("resumen")&&!n.contains("victoria")&&!n.contains("derrota"))return true;
