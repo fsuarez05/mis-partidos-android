@@ -32,7 +32,7 @@ final class NewsRepository {
     private static final int MAX_QUERIES=8;
     private static final int MAX_PER_TEAM=6;
     private static final int MAX_TOTAL=60;
-    private static final long MAX_AGE_MS=14L*24L*60L*60L*1000L;
+    private static final long MAX_AGE_MS=7L*24L*60L*60L*1000L;
     private static final ExecutorService EXECUTOR=Executors.newSingleThreadExecutor();
     private final Context context;
     private final SharedPreferences prefs;
@@ -99,7 +99,7 @@ final class NewsRepository {
 
     private List<NewsItem> fetch(TeamQuery team) throws Exception {
         String query=queryFor(team);
-        String address="https://news.google.com/rss/search?q="+Uri.encode(query+" when:14d")+"&hl=es-419&gl=UY&ceid=UY:es-419";
+        String address="https://news.google.com/rss/search?q="+Uri.encode(query+" when:7d")+"&hl=es-419&gl=UY&ceid=UY:es-419";
         HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
         connection.setConnectTimeout(10000);connection.setReadTimeout(12000);connection.setInstanceFollowRedirects(true);
         connection.setRequestProperty("User-Agent","MisPartidos/1.0 Android");
@@ -120,7 +120,7 @@ final class NewsRepository {
                     }
                 }else if(event==XmlPullParser.END_TAG&&"item".equals(parser.getName())){
                     inItem=false;long published=parseDate(date);
-                    if(isRelevant(team,title,source)&&published>=System.currentTimeMillis()-MAX_AGE_MS)result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
+                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
                 }
                 event=parser.next();
             }
@@ -164,13 +164,21 @@ final class NewsRepository {
     private long parseDate(String value){
         String[]patterns={"EEE, dd MMM yyyy HH:mm:ss z","EEE, d MMM yyyy HH:mm:ss z"};
         for(String pattern:patterns)try{SimpleDateFormat format=new SimpleDateFormat(pattern,Locale.US);format.setTimeZone(TimeZone.getTimeZone("UTC"));Date date=format.parse(value);if(date!=null)return date.getTime();}catch(Exception ignored){}
-        return System.currentTimeMillis();
+        return -1L;
+    }
+
+    private boolean expiredPreview(String title,long published){
+        String n=normalize(title);
+        boolean preview=n.contains("donde ver")||n.contains("como ver")||n.contains("a que hora")||n.contains("que canal")||n.contains("transmision en vivo")||n.contains("posibles alineaciones")||n.contains("probables alineaciones")||n.contains("formaciones probables")||n.contains("previa del partido")||n.contains("horario y tv");
+        // Sin un vínculo fiable con el fixture, las previas vencen a las 24 horas.
+        return preview && System.currentTimeMillis()-published>24L*60L*60L*1000L;
     }
 
     private List<NewsItem> dedupe(List<NewsItem> values){
         Collections.sort(values,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
         LinkedHashMap<String,NewsItem> unique=new LinkedHashMap<>();
         for(NewsItem item:values){
+            if(item.publishedAt<=0 || item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS || item.publishedAt>System.currentTimeMillis()+60L*60L*1000L || expiredPreview(item.title,item.publishedAt))continue;
             String key=normalize(item.title).replaceAll("\\b(el|la|los|las|un|una|de|del|y|en)\\b","").replaceAll("\\s+"," ").trim();
             if(!key.isEmpty()&&!unique.containsKey(key))unique.put(key,item);
             if(unique.size()>=MAX_TOTAL)break;
@@ -184,7 +192,7 @@ final class NewsRepository {
 
     private List<NewsItem> readCache(){
         List<NewsItem> result=new ArrayList<>();
-        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++)result.add(NewsItem.fromJson(array.getJSONObject(i)));}catch(Exception ignored){}
+        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt))result.add(item);}}catch(Exception ignored){}
         Collections.sort(result,(a,b)->Long.compare(b.publishedAt,a.publishedAt));return result;
     }
 
