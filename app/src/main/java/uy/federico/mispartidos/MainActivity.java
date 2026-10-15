@@ -71,9 +71,10 @@ public class MainActivity extends Activity {
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout actions = new LinearLayout(this); actions.setPadding(dp(10),dp(8),dp(10),dp(6));
         Button teams = button("⭐ Equipos y torneos"); teams.setOnClickListener(v -> openConfiguration());
+        Button news = button("Noticias"); news.setContentDescription("Noticias de mis equipos");news.setOnClickListener(v -> startActivity(new Intent(this,NewsActivity.class)));
         Button settings = button("⚙"); settings.setContentDescription("Ajustes");settings.setOnClickListener(v -> showSettings());
         Button update = button("↻"); update.setContentDescription("Actualizar partidos");update.setEnabled(!syncStatus.startsWith("Actualizando"));update.setOnClickListener(v -> syncNow(true));
-        actions.addView(teams,new LinearLayout.LayoutParams(0,-2,1));actions.addView(settings,new LinearLayout.LayoutParams(dp(60),-2));actions.addView(update,new LinearLayout.LayoutParams(dp(60),-2));root.addView(actions);
+        actions.addView(teams,new LinearLayout.LayoutParams(0,-2,1));actions.addView(news,new LinearLayout.LayoutParams(dp(92),-2));actions.addView(settings,new LinearLayout.LayoutParams(dp(56),-2));actions.addView(update,new LinearLayout.LayoutParams(dp(56),-2));root.addView(actions);
         String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
         TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
