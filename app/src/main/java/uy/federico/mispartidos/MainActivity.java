@@ -493,7 +493,7 @@ public class MainActivity extends Activity {
         if(lower.equals("nacional")&&(comp.contains("uruguay")||comp.contains("auf")))return "Nacional Uruguay";
         if(lower.equals("racing club")&&(comp.contains("uruguay")||comp.contains("auf")))return "Racing Montevideo";
         if(lower.equals("river plate")&&(comp.contains("uruguay")||comp.contains("auf")))return "River Plate Uruguay";
-        return n.replaceAll("(?i)\\\\s*\\\\(uruguay\\\\)"," Montevideo").trim();
+        return n.replace("(Uruguay)","Montevideo").replace("(uruguay)","Montevideo").trim();
     }
     private void searchMatchOnGoogle(Match m){
         String local=googleTeamName(m.team,m.competition);
