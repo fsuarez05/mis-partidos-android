@@ -111,7 +111,7 @@ final class NewsRepository {
     }
 
     private List<NewsItem> fetch(TeamQuery team) throws Exception {
-        String query=queryFor(team);
+        String query=queryFor(team)+" -femenino -femenina -women -womens -femeni -sub19 -sub17 -juvenil";
         String address="https://news.google.com/rss/search?q="+Uri.encode(query+" when:7d")+"&hl=es-419&gl=UY&ceid=UY:es-419";
         HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
         connection.setConnectTimeout(10000);connection.setReadTimeout(12000);connection.setInstanceFollowRedirects(true);
@@ -133,7 +133,7 @@ final class NewsRepository {
                     }
                 }else if(event==XmlPullParser.END_TAG&&"item".equals(parser.getName())){
                     inItem=false;long published=parseDate(date);
-                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published) && !historicalHeadline(title))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
+                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published) && !historicalHeadline(title) && !excludedNews(title,source))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
                 }
                 event=parser.next();
             }
@@ -216,6 +216,22 @@ final class NewsRepository {
         return score;
     }
 
+    private boolean excludedNews(String title,String source){
+        String n=normalize(title);
+        String src=normalize(source);
+        if(n.contains("femenin")||n.contains("women")||n.contains("womens")||
+           n.contains("femeni")||n.contains("liga f ")||n.contains("world cup women")||
+           n.contains("sub 19")||n.contains("sub19")||n.contains("sub 17")||
+           n.contains("sub17")||n.contains("u19 ")||n.contains("u17 ")||
+           n.contains("juvenil femenino"))return true;
+        // Los marcadores y fichas automáticas no son artículos periodísticos.
+        if(n.matches(".*\\\\bvs?\\\\.?\\\\s+.*") &&
+           (src.contains("tudn")||src.contains("espn")) &&
+           !n.contains("analisis")&&!n.contains("cronica")&&!n.contains("goles")&&
+           !n.contains("resumen")&&!n.contains("victoria")&&!n.contains("derrota"))return true;
+        return false;
+    }
+
     private boolean sameStory(NewsItem first,NewsItem second){
         String a=normalize(first.title),b=normalize(second.title);
         if(a.equals(b))return true;
@@ -231,16 +247,17 @@ final class NewsRepository {
     private List<NewsItem> dedupe(List<NewsItem> values){
         Collections.sort(values,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
         LinkedHashMap<String,List<NewsItem>> byTeam=new LinkedHashMap<>();
+        List<NewsItem> globallySelected=new ArrayList<>();
         for(NewsItem item:values){
             if(item.publishedAt<=0||item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS||
                 item.publishedAt>System.currentTimeMillis()+60L*60L*1000L||
-                expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||
+                expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||excludedNews(item.title,item.source)||
                 item.title.isEmpty()||item.link.isEmpty())continue;
             List<NewsItem> teamItems=byTeam.get(item.team);
             if(teamItems==null){teamItems=new ArrayList<>();byTeam.put(item.team,teamItems);}
             boolean duplicate=false;
-            for(NewsItem existing:teamItems)if(sameStory(item,existing)){duplicate=true;break;}
-            if(!duplicate&&teamItems.size()<MAX_PER_TEAM)teamItems.add(item);
+            for(NewsItem existing:globallySelected)if(sameStory(item,existing)){duplicate=true;break;}
+            if(!duplicate&&teamItems.size()<MAX_PER_TEAM){teamItems.add(item);globallySelected.add(item);}
         }
         List<String> teams=new ArrayList<>(byTeam.keySet());
         Collections.sort(teams,String.CASE_INSENSITIVE_ORDER);
@@ -263,7 +280,7 @@ final class NewsRepository {
 
     private List<NewsItem> readCache(){
         List<NewsItem> result=new ArrayList<>();
-        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title))result.add(item);}}catch(Exception ignored){}
+        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title) && !excludedNews(item.title,item.source))result.add(item);}}catch(Exception ignored){}
         return dedupe(result);
     }
 
