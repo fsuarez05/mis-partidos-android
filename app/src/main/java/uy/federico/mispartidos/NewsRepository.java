@@ -201,16 +201,45 @@ final class NewsRepository {
         return score;
     }
 
+    private boolean sameStory(NewsItem first,NewsItem second){
+        String a=normalize(first.title),b=normalize(second.title);
+        if(a.equals(b))return true;
+        if(Math.abs(first.publishedAt-second.publishedAt)>48L*60L*60L*1000L)return false;
+        Set<String> wordsA=new HashSet<>(),wordsB=new HashSet<>();
+        for(String word:a.split(" "))if(word.length()>3)wordsA.add(word);
+        for(String word:b.split(" "))if(word.length()>3)wordsB.add(word);
+        if(wordsA.size()<5||wordsB.size()<5)return false;
+        int shared=0;for(String word:wordsA)if(wordsB.contains(word))shared++;
+        return shared>=5&&shared*1.0/Math.max(wordsA.size(),wordsB.size())>=0.8;
+    }
+
     private List<NewsItem> dedupe(List<NewsItem> values){
         Collections.sort(values,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
-        LinkedHashMap<String,NewsItem> unique=new LinkedHashMap<>();
+        LinkedHashMap<String,List<NewsItem>> byTeam=new LinkedHashMap<>();
         for(NewsItem item:values){
-            if(item.publishedAt<=0 || item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS || item.publishedAt>System.currentTimeMillis()+60L*60L*1000L || expiredPreview(item.title,item.publishedAt) || historicalHeadline(item.title))continue;
-            String key=normalize(item.title).replaceAll("\\b(el|la|los|las|un|una|de|del|y|en)\\b","").replaceAll("\\s+"," ").trim();
-            if(!key.isEmpty()&&!unique.containsKey(key))unique.put(key,item);
-            if(unique.size()>=MAX_TOTAL)break;
+            if(item.publishedAt<=0||item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS||
+                item.publishedAt>System.currentTimeMillis()+60L*60L*1000L||
+                expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||
+                item.title.isEmpty()||item.link.isEmpty())continue;
+            List<NewsItem> teamItems=byTeam.get(item.team);
+            if(teamItems==null){teamItems=new ArrayList<>();byTeam.put(item.team,teamItems);}
+            boolean duplicate=false;
+            for(NewsItem existing:teamItems)if(sameStory(item,existing)){duplicate=true;break;}
+            if(!duplicate&&teamItems.size()<MAX_PER_TEAM)teamItems.add(item);
         }
-        return new ArrayList<>(unique.values());
+        List<String> teams=new ArrayList<>(byTeam.keySet());
+        Collections.sort(teams,String.CASE_INSENSITIVE_ORDER);
+        List<NewsItem> balanced=new ArrayList<>();
+        for(int round=0;round<MAX_PER_TEAM&&balanced.size()<MAX_TOTAL;round++){
+            List<NewsItem> batch=new ArrayList<>();
+            for(String team:teams){
+                List<NewsItem> articles=byTeam.get(team);
+                if(round<articles.size())batch.add(articles.get(round));
+            }
+            Collections.sort(batch,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
+            for(NewsItem item:batch){if(balanced.size()>=MAX_TOTAL)break;balanced.add(item);}
+        }
+        return balanced;
     }
 
     private String normalize(String value){
