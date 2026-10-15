@@ -481,14 +481,24 @@ public class MainActivity extends Activity {
     private void showInfoOrGoogle(Match m){String[]items={"Ver información del partido","Buscar en Google"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else searchMatchOnGoogle(m);}).setNegativeButton("Cerrar",null).show();}
     private void showFinishedActions(Match m){String[]items={"Buscar partido en Google","Compartir resultado"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void openMatchInfo(Match m){if(!m.hasRealFixtureId()){new AlertDialog.Builder(this).setTitle("Información del partido").setMessage("Falta actualizar los datos de este partido para obtener su identificación real.").setPositiveButton("Actualizar partidos",(d,w)->syncNow(true)).setNeutralButton("Buscar en Google",(d,w)->searchMatchOnGoogle(m)).setNegativeButton("Cerrar",null).show();return;}try{Intent i=new Intent(this,MatchInfoActivity.class);i.putExtra("match",m.toJson().toString());startActivity(i);}catch(Exception e){Toast.makeText(this,"No pudimos abrir la información del partido",Toast.LENGTH_LONG).show();}}
+    private String googleTeamName(String name,String competition){
+        if(name==null)return "";
+        String n=name.trim();
+        String lower=n.toLowerCase(new Locale("es","UY"));
+        String comp=competition==null?"":competition.toLowerCase(new Locale("es","UY"));
+        if(lower.contains("liverpool")&&(lower.contains("uruguay")||lower.contains("montevideo")||comp.contains("uruguay")||comp.contains("auf")))return "Liverpool Montevideo";
+        if(lower.equals("liverpool")||lower.equals("liverpool fc"))return "Liverpool";
+        if(lower.equals("inter")||lower.equals("internazionale")||lower.equals("inter de milán")||lower.equals("inter milan"))return "Inter Milan";
+        if(lower.equals("milan")||lower.equals("ac milan"))return "Milan";
+        if(lower.equals("nacional")&&(comp.contains("uruguay")||comp.contains("auf")))return "Nacional Uruguay";
+        if(lower.equals("racing club")&&(comp.contains("uruguay")||comp.contains("auf")))return "Racing Montevideo";
+        if(lower.equals("river plate")&&(comp.contains("uruguay")||comp.contains("auf")))return "River Plate Uruguay";
+        return n.replaceAll("(?i)\\\\s*\\\\(uruguay\\\\)"," Montevideo").trim();
+    }
     private void searchMatchOnGoogle(Match m){
-        String game=m.opponent.isEmpty()?m.team:m.team+" vs "+m.opponent;
-        String day=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY")).format(new Date(m.kickoff));
-        // La competición contiene contexto geográfico que evita homónimos como
-        // Liverpool (Uruguay) / Liverpool FC (Inglaterra). También se conserva
-        // rival y fecha para que Google no fuerce el partido de un club más popular.
-        String competition=m.competition==null?"":m.competition.replace(" · dato de prueba","").replace(" › "," ");
-        String query=(game+" "+competition+" "+day).replaceAll("\\s+"," ").trim();
+        String local=googleTeamName(m.team,m.competition);
+        String visitor=googleTeamName(m.opponent,m.competition);
+        String query=(visitor.isEmpty()?local:local+" vs "+visitor).replaceAll("\\s+"," ").trim();
         Uri url=Uri.parse("https://www.google.com/search?q="+Uri.encode(query));
         try{startActivity(new Intent(Intent.ACTION_VIEW,url));}catch(Exception e){Toast.makeText(this,"No encontré un navegador",Toast.LENGTH_LONG).show();}
     }
