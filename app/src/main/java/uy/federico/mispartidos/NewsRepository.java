@@ -24,16 +24,19 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 final class NewsRepository {
     interface Callback { void onComplete(List<NewsItem> items,boolean updated,String message); }
 
     static final long CACHE_MS=4L*60L*60L*1000L;
-    private static final int MAX_QUERIES=8;
     private static final int MAX_PER_TEAM=6;
     private static final int MAX_TOTAL=60;
     private static final long MAX_AGE_MS=7L*24L*60L*60L*1000L;
     private static final ExecutorService EXECUTOR=Executors.newSingleThreadExecutor();
+    private static final ExecutorService FEEDS=Executors.newFixedThreadPool(3);
     private final Context context;
     private final SharedPreferences prefs;
 
@@ -48,14 +51,14 @@ final class NewsRepository {
 
     void load(boolean force,Callback callback){
         List<NewsItem> cache=readCache();
-        if(!force&&!cache.isEmpty()&&System.currentTimeMillis()-lastUpdate()<CACHE_MS){
-            callback.onComplete(cache,false,"Noticias guardadas");
-            return;
-        }
-        EXECUTOR.execute(()->refresh(cache,callback));
+        EXECUTOR.execute(()->refresh(cache,force,callback));
     }
 
-    private void refresh(List<NewsItem> old,Callback callback){
+    private String stampKey(TeamQuery team){
+        return "news_team_updated_"+(team.national?"national_":"club_")+normalize(team.name);
+    }
+
+    private void refresh(List<NewsItem> old,boolean force,Callback callback){
         AppStore store=new AppStore(context);
         List<TeamQuery> all=new ArrayList<>();
         for(String team:store.selectedTeams())all.add(new TeamQuery(team,false));
@@ -63,35 +66,44 @@ final class NewsRepository {
         Collections.sort(all,(a,b)->a.name.compareToIgnoreCase(b.name));
         if(all.isEmpty()){post(callback,new ArrayList<>(),false,"Elegí al menos un club o selección para ver noticias.");return;}
 
-        int start=Math.floorMod(prefs.getInt("news_query_cursor",0),all.size());
-        int count=Math.min(MAX_QUERIES,all.size());
-        Set<String> refreshedTeams=new HashSet<>();
-        List<NewsItem> downloaded=new ArrayList<>();
-        List<String> failures=new ArrayList<>();
-        for(int i=0;i<count;i++){
-            TeamQuery team=all.get((start+i)%all.size());
-            try{
-                downloaded.addAll(fetch(team));
-                refreshedTeams.add(team.name);
-            }catch(Exception e){
-                failures.add(team.name);
-            }
+        long now=System.currentTimeMillis();
+        Set<String> active=new HashSet<>();
+        List<TeamQuery> pending=new ArrayList<>();
+        for(TeamQuery team:all){
+            active.add(team.name);
+            long updated=prefs.getLong(stampKey(team),0L);
+            if(force||updated<=0||now-updated>=CACHE_MS)pending.add(team);
         }
-        prefs.edit().putInt("news_query_cursor",(start+count)%all.size()).apply();
-
-        if(downloaded.isEmpty()){
-            String message=old.isEmpty()?"No se pudieron obtener noticias. Revisá la conexión.":"No se pudo actualizar. Se muestran las noticias guardadas.";
-            post(callback,old,false,message);
+        List<NewsItem> merged=new ArrayList<>();
+        for(NewsItem item:old)if(active.contains(item.team))merged.add(item);
+        if(pending.isEmpty()){
+            post(callback,dedupe(merged),false,"Noticias guardadas · todos los equipos actualizados");
             return;
         }
 
-        List<NewsItem> merged=new ArrayList<>(downloaded);
-        Set<String> activeTeams=new HashSet<>();for(TeamQuery team:all)activeTeams.add(team.name);
-        for(NewsItem item:old)if(activeTeams.contains(item.team)&&!refreshedTeams.contains(item.team))merged.add(item);
+        List<Future<List<NewsItem>>> tasks=new ArrayList<>();
+        for(TeamQuery team:pending)tasks.add(FEEDS.submit(()->fetch(team)));
+        int successes=0,failures=0;
+        SharedPreferences.Editor editor=prefs.edit();
+        for(int i=0;i<pending.size();i++){
+            TeamQuery team=pending.get(i);
+            try{
+                List<NewsItem> items=tasks.get(i).get(25,TimeUnit.SECONDS);
+                merged.removeIf(item->item.team.equals(team.name));
+                merged.addAll(items);
+                editor.putLong(stampKey(team),System.currentTimeMillis());
+                successes++;
+            }catch(Exception e){
+                tasks.get(i).cancel(true);
+                failures++;
+            }
+        }
+        editor.apply();
         merged=dedupe(merged);
-        saveCache(merged);
-        String message=failures.isEmpty()?"Noticias actualizadas":("Actualización parcial. Sin respuesta para "+failures.size()+" equipo"+(failures.size()==1?".":"s."));
-        post(callback,merged,true,message);
+        if(successes>0)saveCache(merged);
+        String message=failures==0?"Noticias actualizadas · "+successes+" equipos":(
+            successes==0?"No se pudo actualizar. Se muestran noticias guardadas.":"Actualización parcial: "+successes+" equipos actualizados, "+failures+" pendientes.");
+        post(callback,merged,successes>0,message);
     }
 
     private void post(Callback callback,List<NewsItem> items,boolean updated,String message){
