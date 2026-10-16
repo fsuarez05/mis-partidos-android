@@ -69,7 +69,11 @@ public class MatchInfoActivity extends Activity {
     private String valueOrFallback(String value){return value==null||value.trim().isEmpty()?"No encontramos información reciente suficiente.":value;}
     private String nameOr(String value,String fallback){return value==null||value.trim().isEmpty()?fallback:value;}
     private String trim(StringBuilder b){return b.toString().trim();}
-    private void searchGoogle(){String day=new SimpleDateFormat("dd/MM/yyyy",new Locale("es","UY")).format(new Date(match.kickoff));String competition=match.competition==null?"":match.competition.replace(" · dato de prueba","").replace(" › "," ");openUrl("https://www.google.com/search?q="+Uri.encode((match.local()+" vs "+match.visitante()+" "+competition+" "+day).replaceAll("\\s+"," ").trim()));}
+    private void searchGoogle(){
+        String local=match.local(),visitor=match.visitante();
+        String query=(visitor==null||visitor.trim().isEmpty()?local:local+" vs "+visitor).replaceAll("\\s+"," ").trim();
+        openUrl("https://www.google.com/search?q="+Uri.encode(query));
+    }
     private void openUrl(String value){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(value)));}catch(Exception e){Toast.makeText(this,"No encontré un navegador",Toast.LENGTH_LONG).show();}}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
