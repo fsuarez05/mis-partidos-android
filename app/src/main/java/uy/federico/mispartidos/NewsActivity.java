@@ -93,7 +93,7 @@ public class NewsActivity extends Activity {
         if(content==null||teamFilter==null)return;
         String query=normalized(teamFilter.getText().toString());
         List<NewsItem> items=new ArrayList<>();
-        for(NewsItem item:allNews)if(query.isEmpty()||normalized(item.team).contains(query))items.add(item);
+        for(NewsItem item:allNews)if(query.isEmpty()||normalized(item.teams).contains(query))items.add(item);
         content.removeAllViews();
         if(items.isEmpty()){
             TextView empty=text(query.isEmpty()?"No hay noticias disponibles para tus equipos favoritos.":"No hay noticias para ese equipo en las noticias cargadas.",16,Color.DKGRAY,false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(20),dp(72),dp(20),dp(20));content.addView(empty);return;
@@ -104,7 +104,7 @@ public class NewsActivity extends Activity {
     private View card(NewsItem item){
         LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(16),dp(14),dp(16),dp(14));
         android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(14));bg.setStroke(dp(1),Color.rgb(226,232,240));card.setBackground(bg);
-        TextView team=text(item.team,13,Color.rgb(37,99,235),true);
+        TextView team=text(item.teams.replace(" | "," · "),13,Color.rgb(37,99,235),true);
         TextView title=text(item.title,17,Color.rgb(15,23,42),true);title.setPadding(0,dp(6),0,dp(8));
         String details=(item.source.isEmpty()?"Medio no informado":item.source)+" · "+dateFormat.format(new Date(item.publishedAt));
         TextView meta=text(details,13,Color.GRAY,false);
