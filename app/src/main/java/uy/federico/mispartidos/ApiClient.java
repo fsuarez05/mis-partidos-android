@@ -537,12 +537,20 @@ class ApiClient {
                 MatchSummary previous=store.cachedMatchSummary(match.fixtureId);
                 boolean useful=summary.found&&summary.informationScore()>0;
                 boolean previousUseful=previous!=null&&previous.found&&previous.informationScore()>0;
-                if(useful&&(!previousUseful||summary.informationScore()>=previous.informationScore())){
+                long previousAt=store.cachedMatchSummaryTime(match.fixtureId);
+                boolean previousRecent=previousAt>0&&previousAt<=System.currentTimeMillis()
+                        &&System.currentTimeMillis()-previousAt<24L*60L*60L*1000L;
+                // A recent, richer response is worth keeping; older context must not
+                // indefinitely defeat newer information merely because it is longer.
+                if(useful&&(!previousUseful||!previousRecent
+                        ||summary.informationScore()>=previous.informationScore())){
                     store.saveMatchSummary(match.fixtureId,summary);
                 }else if(previousUseful){
                     summary=previous;
                     summary.fallback=true;
-                    summary.fallbackReason="La nueva consulta no aportó información más completa.";
+                    summary.fallbackReason=useful
+                            ?"La nueva consulta aportó menos información que la guardada recientemente."
+                            :"La nueva consulta no aportó información útil.";
                 }
             }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
