@@ -91,7 +91,14 @@ public class MatchInfoActivity extends Activity {
     private void title(String value){TextView t=text(value,18,Color.rgb(15,23,42),true);t.setPadding(0,dp(12),0,dp(2));content.addView(t);}
     private void addNotice(String value){TextView n=text(value,14,Color.rgb(146,64,14),false);n.setPadding(dp(12),dp(10),dp(12),dp(10));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.rgb(255,247,237));bg.setCornerRadius(dp(10));n.setBackground(bg);content.addView(n);}
     private void addSource(MatchSummary.Source s){TextView link=text(s.title.isEmpty()?"Abrir fuente":s.title,15,Color.rgb(37,99,235),true);if(!s.date.isEmpty())link.setText(link.getText()+"\n"+s.date);link.setPadding(dp(10),dp(10),dp(10),dp(10));link.setOnClickListener(v->openUrl(s.url));content.addView(link);}
-    private void addUpdated(String iso){String display=formatUpdated(iso);if(display.isEmpty())return;TextView value=text("Actualizado: "+display,13,Color.GRAY,false);value.setGravity(Gravity.CENTER);value.setPadding(0,dp(24),0,dp(8));content.addView(value);}
+    private void addUpdated(String iso){
+        long cachedAt=new AppStore(this).cachedMatchSummaryTime(match.fixtureId);
+        String display=cachedAt>0?formatUpdated(Instant.ofEpochMilli(cachedAt).toString()):formatUpdated(iso);
+        String message=cachedAt>0?"Última consulta de información: ":"Fecha informada por el servicio: ";
+        if(display.isEmpty()){display="no disponible";message="Fecha de consulta: ";}
+        TextView value=text(message+display+" · Información guardada en el dispositivo",13,Color.GRAY,false);
+        value.setGravity(Gravity.CENTER);value.setPadding(0,dp(24),0,dp(8));content.addView(value);
+    }
     private String formatUpdated(String iso){try{ZoneId zone=ZoneId.of("America/Montevideo");java.time.ZonedDateTime z=Instant.parse(iso).atZone(zone);LocalDate today=LocalDate.now(zone);String time=z.format(DateTimeFormatter.ofPattern("HH:mm",new Locale("es","UY")));if(z.toLocalDate().equals(today))return"hoy "+time;return z.format(DateTimeFormatter.ofPattern("dd/MM/yyyy · HH:mm",new Locale("es","UY")));}catch(Exception e){return iso==null?"":iso;}}
     private String teamText(MatchSummary.TeamInfo t){return t.form.trim().isEmpty()||"sin_informacion".equals(t.quality)?"No encontramos información reciente suficiente.":t.form;}
     private String valueOrFallback(String value){return value==null||value.trim().isEmpty()?"No encontramos información reciente suficiente.":value;}
