@@ -532,7 +532,16 @@ class ApiClient {
                 if(!wrapper.optBoolean("ok"))throw new Exception("No se pudo obtener la información");
                 JSONObject data=wrapper.optJSONObject("data");
                 if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
-                summary=MatchSummary.fromJson(data);new AppStore(context).saveMatchSummary(match.fixtureId,summary);
+                summary=MatchSummary.fromJson(data);
+                AppStore store=new AppStore(context);
+                MatchSummary previous=store.cachedMatchSummary(match.fixtureId);
+                boolean useful=summary.found&&summary.informationScore()>0;
+                boolean previousUseful=previous!=null&&previous.found&&previous.informationScore()>0;
+                if(useful&&(!previousUseful||summary.informationScore()>=previous.informationScore())){
+                    store.saveMatchSummary(match.fixtureId,summary);
+                }else if(previousUseful){
+                    summary=previous;
+                }
             }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
             new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
