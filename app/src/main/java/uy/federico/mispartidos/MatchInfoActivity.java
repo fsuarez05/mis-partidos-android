@@ -45,7 +45,30 @@ public class MatchInfoActivity extends Activity {
         setContentView(root);
     }
 
-    private void load(boolean force){if(finished){if(lastSummary!=null)render(lastSummary);else renderFinishedWithoutSummary();return;}if(loading)return;loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);if(force||lastSummary==null)showLoading(force);ApiClient.matchSummary(this,match,force,(summary,error)->{loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);if(summary!=null){lastSummary=summary;render(lastSummary);}else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}else renderError(error);});}
+    private void load(boolean force){load(force,false);}
+    private void load(boolean force,boolean allowOverLimit){
+        if(finished){if(lastSummary!=null)render(lastSummary);else renderFinishedWithoutSummary();return;}
+        if(loading)return;
+        loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);
+        if(force||lastSummary==null)showLoading(force);
+        ApiClient.matchSummary(this,match,force,allowOverLimit,(summary,error)->{
+            loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);
+            if("TAVILY_DAILY_LIMIT".equals(error)){
+                if(lastSummary!=null)render(lastSummary);
+                else renderError("Se alcanzó el presupuesto diario de Tavily.");
+                new android.app.AlertDialog.Builder(this)
+                    .setTitle("Límite diario de Tavily")
+                    .setMessage("Se alcanzó el presupuesto de búsquedas disponible para hoy. ¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.")
+                    .setNegativeButton("Cancelar",(dialog,which)->{})
+                    .setPositiveButton("Consultar igualmente",(dialog,which)->load(force,true))
+                    .show();
+                return;
+            }
+            if(summary!=null){lastSummary=summary;render(lastSummary);}
+            else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}
+            else renderError(error);
+        });
+    }
     private void renderFinishedWithoutSummary(){
         content.removeAllViews();addHeader();
         addNotice("Este encuentro figura entre los resultados recientes. No se consulta la IA para reconstruir la previa.");
