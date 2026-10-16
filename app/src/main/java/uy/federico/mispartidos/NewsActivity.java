@@ -37,6 +37,7 @@ public class NewsActivity extends Activity {
     private AutoCompleteTextView teamFilter;
     private Button allFilter;
     private Button todayFilter;
+    private TextView teamUpdateStatus;
     private boolean last24Hours=false;
     private List<NewsItem> allNews=new ArrayList<>();
     private final SimpleDateFormat dateFormat=new SimpleDateFormat("dd/MM · HH:mm",new Locale("es","UY"));
@@ -73,6 +74,9 @@ public class NewsActivity extends Activity {
         quickFilters.addView(todayFilter,new LinearLayout.LayoutParams(0,dp(44),1));
         root.addView(quickFilters);
         updateFilterButtons();
+        teamUpdateStatus=text("",12,Color.DKGRAY,false);
+        teamUpdateStatus.setPadding(dp(16),dp(4),dp(16),dp(4));
+        root.addView(teamUpdateStatus);
         status=text("",13,Color.DKGRAY,false);status.setPadding(dp(16),dp(10),dp(16),dp(8));root.addView(status);
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         ScrollView scroll=new ScrollView(this);content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(12),dp(28));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -109,6 +113,20 @@ public class NewsActivity extends Activity {
         renderFiltered();
     }
 
+    private void showTeamUpdate(){
+        if(teamUpdateStatus==null||teamFilter==null)return;
+        String query=normalized(teamFilter.getText().toString());
+        if(query.isEmpty()){teamUpdateStatus.setText("Actualización automática cada 4 horas por equipo · Actualizar fuerza una nueva consulta");return;}
+        java.util.LinkedHashSet<String> matches=new java.util.LinkedHashSet<>();
+        for(NewsItem item:allNews)for(String name:item.teams.split(" \\| "))if(normalized(name).contains(query))matches.add(name);
+        if(matches.size()!=1){teamUpdateStatus.setText(matches.isEmpty()?"Sin equipos coincidentes en las noticias cargadas":"Seleccioná un equipo para ver su última actualización");return;}
+        String team=matches.iterator().next();
+        AppStore store=new AppStore(this);
+        boolean national=store.selectedNationalTeams().contains(team);
+        long last=repository.teamLastUpdate(team,national);
+        teamUpdateStatus.setText(last<=0?"Sin actualización registrada para "+team:"Última consulta de "+team+": "+dateFormat.format(new Date(last))+(System.currentTimeMillis()-last>=NewsRepository.CACHE_MS?" · pendiente de actualizar":" · caché vigente"));
+    }
+
     private String normalized(String value){return Normalizer.normalize(value==null?"":value,Normalizer.Form.NFD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT).trim();}
 
     private void renderFiltered(){
@@ -116,6 +134,7 @@ public class NewsActivity extends Activity {
         String query=normalized(teamFilter.getText().toString());
         List<NewsItem> items=new ArrayList<>();
         for(NewsItem item:allNews)if((query.isEmpty()||normalized(item.teams).contains(query))&&(!last24Hours||item.publishedAt>=System.currentTimeMillis()-24L*60L*60L*1000L))items.add(item);
+        showTeamUpdate();
         content.removeAllViews();
         if(items.isEmpty()){
             TextView empty=text(last24Hours?"No hay noticias de las últimas 24 horas con este filtro.":query.isEmpty()?"No hay noticias disponibles para tus equipos favoritos.":"No hay noticias para ese equipo en las noticias cargadas.",16,Color.DKGRAY,false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(20),dp(72),dp(20),dp(20));content.addView(empty);return;
