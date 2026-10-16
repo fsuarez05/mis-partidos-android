@@ -517,6 +517,9 @@ class ApiClient {
     }
 
     static void matchSummary(Context context,Match match,boolean refresh,MatchSummaryCallback callback){
+        matchSummary(context,match,refresh,false,callback);
+    }
+    static void matchSummary(Context context,Match match,boolean refresh,boolean allowOverLimit,MatchSummaryCallback callback){
         prepare(context);
         new Thread(()->{
             MatchSummary summary=null;String error=null;
@@ -528,8 +531,9 @@ class ApiClient {
                         "pais",match.country,"competicion",match.competition,"fecha",date.format(new Date(match.kickoff)),
                         "hora",time.format(new Date(match.kickoff)),"localId",match.homeTeamId,"visitanteId",match.awayTeamId);
                 if(refresh)p.put("refresh","true");
+                if(allowOverLimit)p.put("allowOverLimit","true");
                 JSONObject wrapper=request("matchSummary",p);
-                if(!wrapper.optBoolean("ok"))throw new Exception("No se pudo obtener la información");
+                if(!wrapper.optBoolean("ok")){if("TAVILY_DAILY_LIMIT".equals(wrapper.optString("errorCode")))throw new Exception("TAVILY_DAILY_LIMIT");throw new Exception("No se pudo obtener la información");}
                 JSONObject data=wrapper.optJSONObject("data");
                 if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
                 summary=MatchSummary.fromJson(data);
@@ -562,7 +566,7 @@ class ApiClient {
                             ?"La nueva consulta devolvió información de respaldo; se conserva la anterior."
                             :"La nueva consulta no mejoró la información guardada recientemente.";
                 }
-            }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
+            }catch(Exception e){error="TAVILY_DAILY_LIMIT".equals(e.getMessage())?"TAVILY_DAILY_LIMIT":"No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
             new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
         }).start();
