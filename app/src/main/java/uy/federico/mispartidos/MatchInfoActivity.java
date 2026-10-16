@@ -53,12 +53,22 @@ public class MatchInfoActivity extends Activity {
         if(force||lastSummary==null)showLoading(force);
         ApiClient.matchSummary(this,match,force,allowOverLimit,(summary,error)->{
             loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);
-            if("TAVILY_DAILY_LIMIT".equals(error)){
+            if(error!=null&&error.startsWith("TAVILY_DAILY_LIMIT")){
                 if(lastSummary!=null)render(lastSummary);
                 else renderError("Se alcanzó el presupuesto diario de Tavily.");
+                String aviso="Se alcanzó el presupuesto de búsquedas disponible para hoy.";
+                String[] datos=error.split("\\|");
+                if(datos.length==4){
+                    try{
+                        int usados=Integer.parseInt(datos[1]),total=Integer.parseInt(datos[2]),disponibles=Integer.parseInt(datos[3]);
+                        if(usados>=0&&total>0&&disponibles>=0)
+                            aviso+="\\n\\nConsumo estimado del mes: "+usados+" de "+total+" créditos. Disponibles según el presupuesto de hoy: "+disponibles+".";
+                    }catch(NumberFormatException ignored){}
+                }
+                aviso+="\\n\\n¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.";
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("Límite diario de Tavily")
-                    .setMessage("Se alcanzó el presupuesto de búsquedas disponible para hoy. ¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.")
+                    .setMessage(aviso)
                     .setNegativeButton("Cancelar",(dialog,which)->{})
                     .setPositiveButton("Consultar igualmente",(dialog,which)->load(force,true))
                     .show();
