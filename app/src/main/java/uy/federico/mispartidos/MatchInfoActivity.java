@@ -46,7 +46,24 @@ public class MatchInfoActivity extends Activity {
 
     private void load(boolean force){if(loading)return;loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);if(force||lastSummary==null)showLoading(force);ApiClient.matchSummary(this,match,force,(summary,error)->{loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);if(summary!=null){lastSummary=summary;render(lastSummary);}else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}else renderError(error);});}
     private void showLoading(boolean refreshRequest){content.removeAllViews();addHeader();TextView value=text(refreshRequest?"Actualizando información…":"Buscando información del partido…",16,Color.DKGRAY,false);value.setGravity(Gravity.CENTER);value.setPadding(0,dp(38),0,dp(38));content.addView(value);}
-    private void addHeader(){TextView game=text(match.local()+" vs. "+match.visitante(),24,Color.rgb(15,23,42),true);game.setGravity(Gravity.CENTER);content.addView(game);TextView meta=text(match.competition+"\n"+dateText(),15,Color.GRAY,false);meta.setGravity(Gravity.CENTER);meta.setPadding(0,dp(7),0,dp(16));content.addView(meta);}
+    private void addHeader(){
+        TextView game=text(match.local()+" vs. "+match.visitante(),24,Color.rgb(15,23,42),true);
+        game.setGravity(Gravity.CENTER);content.addView(game);
+        String phase;
+        long now=System.currentTimeMillis();
+        if(AppStore.isInProgress(match))phase="En juego · seguimiento en Google";
+        else if(now<match.kickoff)phase="Próximo partido";
+        else if(match.hasScore())phase="Resultado registrado · consultar estado en Google";
+        else phase="Partido programado o pendiente de resultado";
+        TextView state=text(phase,14,Color.rgb(37,99,235),true);
+        state.setGravity(Gravity.CENTER);state.setPadding(0,dp(8),0,dp(2));content.addView(state);
+        if(match.hasScore()){
+            TextView score=text(match.homeScore+" - "+match.awayScore,30,Color.rgb(15,23,42),true);
+            score.setGravity(Gravity.CENTER);content.addView(score);
+        }
+        TextView meta=text(match.competition+"\\n"+dateText(),15,Color.GRAY,false);
+        meta.setGravity(Gravity.CENTER);meta.setPadding(0,dp(7),0,dp(16));content.addView(meta);
+    }
     private String dateText(){SimpleDateFormat f=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm",new Locale("es","UY"));f.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));String s=f.format(new Date(match.kickoff));return s.substring(0,1).toUpperCase(new Locale("es","UY"))+s.substring(1);}
 
     private void render(MatchSummary s){content.removeAllViews();addHeader();if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
