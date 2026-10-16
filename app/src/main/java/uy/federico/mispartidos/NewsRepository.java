@@ -75,7 +75,11 @@ final class NewsRepository {
             if(force||updated<=0||now-updated>=CACHE_MS)pending.add(team);
         }
         List<NewsItem> merged=new ArrayList<>();
-        for(NewsItem item:old)if(active.contains(item.team))merged.add(item);
+        for(NewsItem item:old){
+            boolean relevant=false;
+            for(String team:item.teams.split(" \\| "))if(active.contains(team)){relevant=true;break;}
+            if(relevant)merged.add(item);
+        }
         if(pending.isEmpty()){
             post(callback,dedupe(merged),false,"Noticias guardadas · todos los equipos actualizados");
             return;
@@ -89,7 +93,7 @@ final class NewsRepository {
             TeamQuery team=pending.get(i);
             try{
                 List<NewsItem> items=tasks.get(i).get(25,TimeUnit.SECONDS);
-                merged.removeIf(item->item.team.equals(team.name));
+                merged.removeIf(item->item.teams.contains(team.name) && item.team.equals(team.name));
                 merged.addAll(items);
                 editor.putLong(stampKey(team),System.currentTimeMillis());
                 successes++;
@@ -255,9 +259,18 @@ final class NewsRepository {
                 item.title.isEmpty()||item.link.isEmpty())continue;
             List<NewsItem> teamItems=byTeam.get(item.team);
             if(teamItems==null){teamItems=new ArrayList<>();byTeam.put(item.team,teamItems);}
-            boolean duplicate=false;
-            for(NewsItem existing:globallySelected)if(sameStory(item,existing)){duplicate=true;break;}
-            if(!duplicate&&teamItems.size()<MAX_PER_TEAM){teamItems.add(item);globallySelected.add(item);}
+            NewsItem duplicate=null;
+            for(NewsItem existing:globallySelected)if(sameStory(item,existing)){duplicate=existing;break;}
+            if(duplicate!=null){
+                LinkedHashSet<String> names=new LinkedHashSet<>();
+                for(String name:duplicate.teams.split(" \\| "))names.add(name);
+                for(String name:item.teams.split(" \\| "))names.add(name);
+                String combined=android.text.TextUtils.join(" | ",names);
+                NewsItem updated=new NewsItem(duplicate.title,duplicate.source,duplicate.link,duplicate.team,duplicate.publishedAt,combined);
+                globallySelected.set(globallySelected.indexOf(duplicate),updated);
+                List<NewsItem> existingTeam=byTeam.get(duplicate.team);
+                if(existingTeam!=null)existingTeam.set(existingTeam.indexOf(duplicate),updated);
+            }else if(teamItems.size()<MAX_PER_TEAM){teamItems.add(item);globallySelected.add(item);}
         }
         List<String> teams=new ArrayList<>(byTeam.keySet());
         Collections.sort(teams,String.CASE_INSENSITIVE_ORDER);
