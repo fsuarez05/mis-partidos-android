@@ -53,6 +53,16 @@ public class MatchInfoActivity extends Activity {
         if(force||lastSummary==null)showLoading(force);
         ApiClient.matchSummary(this,match,force,allowOverLimit,(summary,error)->{
             loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);
+            if("TAVILY_MONTHLY_LIMIT".equals(error)){
+                if(lastSummary!=null)render(lastSummary);
+                else renderError("Se agotó la cuota mensual estimada de Tavily.");
+                new android.app.AlertDialog.Builder(this)
+                    .setTitle("Cuota mensual de Tavily agotada")
+                    .setMessage("Se alcanzó la cuota mensual configurada. Para evitar gastos adicionales, no se realizarán nuevas búsquedas hasta el próximo mes. Podés seguir consultando información guardada.")
+                    .setPositiveButton("Entendido",(dialog,which)->{})
+                    .show();
+                return;
+            }
             if(error!=null&&error.startsWith("TAVILY_DAILY_LIMIT")){
                 if(lastSummary!=null)render(lastSummary);
                 else renderError("Se alcanzó el presupuesto diario de Tavily.");
