@@ -541,6 +541,8 @@ class ApiClient {
                     store.saveMatchSummary(match.fixtureId,summary);
                 }else if(previousUseful){
                     summary=previous;
+                    summary.fallback=true;
+                    summary.fallbackReason="La nueva consulta no aportó información más completa.";
                 }
             }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
