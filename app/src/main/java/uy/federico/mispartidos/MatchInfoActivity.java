@@ -68,14 +68,14 @@ public class MatchInfoActivity extends Activity {
             TextView score=text(match.homeScore+" - "+match.awayScore,30,Color.rgb(15,23,42),true);
             score.setGravity(Gravity.CENTER);content.addView(score);
         }
-        TextView meta=text(match.competition+"\\n"+dateText(),15,Color.GRAY,false);
+        TextView meta=text(match.competition+"\n"+dateText(),15,Color.GRAY,false);
         meta.setGravity(Gravity.CENTER);meta.setPadding(0,dp(7),0,dp(16));content.addView(meta);
     }
     private String dateText(){SimpleDateFormat f=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm",new Locale("es","UY"));f.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));String s=f.format(new Date(match.kickoff));return s.substring(0,1).toUpperCase(new Locale("es","UY"))+s.substring(1);}
 
-    private void render(MatchSummary s){content.removeAllViews();addHeader();if(finished)addNotice("Información previa guardada. Para el resultado y los goles, consultá Google.");if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
+    private void render(MatchSummary s){content.removeAllViews();addHeader();if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
         boolean started=System.currentTimeMillis()>=match.kickoff;
-        if(started)addNotice("Los datos de contexto y forma de los equipos corresponden a la previa del encuentro. Para el desarrollo y resultado actualizado, consultá Google.");
+        if(started)addNotice("Estos datos corresponden a la previa del encuentro. Para consultar el resultado, los goles y el desarrollo actualizado, usá Google.");
         section(started?"Contexto previo al partido":"Contexto",valueOrFallback(s.context));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.home.name,match.local()),teamText(s.home));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.away.name,match.visitante()),teamText(s.away));
