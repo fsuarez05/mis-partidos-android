@@ -35,6 +35,9 @@ public class NewsActivity extends Activity {
     private TextView status;
     private Button refresh;
     private AutoCompleteTextView teamFilter;
+    private Button allFilter;
+    private Button todayFilter;
+    private boolean last24Hours=false;
     private List<NewsItem> allNews=new ArrayList<>();
     private final SimpleDateFormat dateFormat=new SimpleDateFormat("dd/MM · HH:mm",new Locale("es","UY"));
 
@@ -59,10 +62,29 @@ public class NewsActivity extends Activity {
         teamFilter.setPadding(dp(16),dp(12),dp(16),dp(12));
         teamFilter.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){} public void onTextChanged(CharSequence s,int start,int before,int count){renderFiltered();} public void afterTextChanged(Editable e){}});
         LinearLayout.LayoutParams filterParams=new LinearLayout.LayoutParams(-1,-2);filterParams.setMargins(dp(12),dp(10),dp(12),0);root.addView(teamFilter,filterParams);
+        LinearLayout quickFilters=new LinearLayout(this);
+        quickFilters.setOrientation(LinearLayout.HORIZONTAL);
+        quickFilters.setPadding(dp(12),dp(8),dp(12),dp(4));
+        allFilter=button("Todas");
+        todayFilter=button("Últimas 24 h");
+        allFilter.setOnClickListener(v->{last24Hours=false;updateFilterButtons();renderFiltered();});
+        todayFilter.setOnClickListener(v->{last24Hours=true;updateFilterButtons();renderFiltered();});
+        quickFilters.addView(allFilter,new LinearLayout.LayoutParams(0,dp(44),1));
+        quickFilters.addView(todayFilter,new LinearLayout.LayoutParams(0,dp(44),1));
+        root.addView(quickFilters);
+        updateFilterButtons();
         status=text("",13,Color.DKGRAY,false);status.setPadding(dp(16),dp(10),dp(16),dp(8));root.addView(status);
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         ScrollView scroll=new ScrollView(this);content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(12),dp(8),dp(12),dp(28));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root);
+    }
+
+    private void updateFilterButtons(){
+        if(allFilter==null||todayFilter==null)return;
+        allFilter.setEnabled(last24Hours);
+        todayFilter.setEnabled(!last24Hours);
+        allFilter.setAlpha(last24Hours?0.65f:1f);
+        todayFilter.setAlpha(last24Hours?1f:0.65f);
     }
 
     private void load(boolean force){
@@ -81,7 +103,7 @@ public class NewsActivity extends Activity {
     private void render(List<NewsItem> items){
         allNews=new ArrayList<>(items);
         LinkedHashSet<String> teams=new LinkedHashSet<>();
-        for(NewsItem item:items)teams.add(item.team);
+        for(NewsItem item:items)for(String team:item.teams.split(" \\| "))teams.add(team);
         List<String> options=new ArrayList<>(teams);Collections.sort(options,String.CASE_INSENSITIVE_ORDER);
         teamFilter.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,options));
         renderFiltered();
@@ -93,10 +115,10 @@ public class NewsActivity extends Activity {
         if(content==null||teamFilter==null)return;
         String query=normalized(teamFilter.getText().toString());
         List<NewsItem> items=new ArrayList<>();
-        for(NewsItem item:allNews)if(query.isEmpty()||normalized(item.teams).contains(query))items.add(item);
+        for(NewsItem item:allNews)if((query.isEmpty()||normalized(item.teams).contains(query))&&(!last24Hours||item.publishedAt>=System.currentTimeMillis()-24L*60L*60L*1000L))items.add(item);
         content.removeAllViews();
         if(items.isEmpty()){
-            TextView empty=text(query.isEmpty()?"No hay noticias disponibles para tus equipos favoritos.":"No hay noticias para ese equipo en las noticias cargadas.",16,Color.DKGRAY,false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(20),dp(72),dp(20),dp(20));content.addView(empty);return;
+            TextView empty=text(last24Hours?"No hay noticias de las últimas 24 horas con este filtro.":query.isEmpty()?"No hay noticias disponibles para tus equipos favoritos.":"No hay noticias para ese equipo en las noticias cargadas.",16,Color.DKGRAY,false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(20),dp(72),dp(20),dp(20));content.addView(empty);return;
         }
         for(NewsItem item:items)content.addView(card(item));
     }
