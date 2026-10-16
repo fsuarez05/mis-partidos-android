@@ -533,7 +533,7 @@ class ApiClient {
                 if(refresh)p.put("refresh","true");
                 if(allowOverLimit)p.put("allowOverLimit","true");
                 JSONObject wrapper=request("matchSummary",p);
-                if(!wrapper.optBoolean("ok")){if("TAVILY_DAILY_LIMIT".equals(wrapper.optString("errorCode")))throw new Exception("TAVILY_DAILY_LIMIT");throw new Exception("No se pudo obtener la información");}
+                if(!wrapper.optBoolean("ok")){if("TAVILY_DAILY_LIMIT".equals(wrapper.optString("errorCode"))){JSONObject budget=wrapper.optJSONObject("budget");String detail=budget==null?"":("|"+budget.optInt("creditosEstimadosConsumidos",-1)+"|"+budget.optInt("cuotaMensual",-1)+"|"+budget.optInt("disponiblesHoy",-1));throw new Exception("TAVILY_DAILY_LIMIT"+detail);}throw new Exception("No se pudo obtener la información");}
                 JSONObject data=wrapper.optJSONObject("data");
                 if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
                 summary=MatchSummary.fromJson(data);
@@ -566,7 +566,7 @@ class ApiClient {
                             ?"La nueva consulta devolvió información de respaldo; se conserva la anterior."
                             :"La nueva consulta no mejoró la información guardada recientemente.";
                 }
-            }catch(Exception e){error="TAVILY_DAILY_LIMIT".equals(e.getMessage())?"TAVILY_DAILY_LIMIT":"No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
+            }catch(Exception e){error=e.getMessage()!=null&&e.getMessage().startsWith("TAVILY_DAILY_LIMIT")?e.getMessage():"No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
             new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
         }).start();
