@@ -281,7 +281,7 @@ final class NewsRepository {
                 List<NewsItem> articles=byTeam.get(team);
                 if(round<articles.size())batch.add(articles.get(round));
             }
-            Collections.sort(batch,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
+            Collections.sort(batch,(a,b)->{long hours=Math.abs(a.publishedAt-b.publishedAt)/(60L*60L*1000L);if(hours>=24)return Long.compare(b.publishedAt,a.publishedAt);int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
             for(NewsItem item:batch){if(balanced.size()>=MAX_TOTAL)break;balanced.add(item);}
         }
         return balanced;
