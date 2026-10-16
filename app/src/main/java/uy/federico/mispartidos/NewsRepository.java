@@ -47,6 +47,7 @@ final class NewsRepository {
 
     List<NewsItem> cached(){return readCache();}
     long lastUpdate(){return prefs.getLong("news_updated_at",0);}
+    long teamLastUpdate(String team,boolean national){return prefs.getLong(stampKey(new TeamQuery(team,national)),0L);}
     boolean cacheFresh(){return !readCache().isEmpty()&&System.currentTimeMillis()-lastUpdate()<CACHE_MS;}
 
     void load(boolean force,Callback callback){
