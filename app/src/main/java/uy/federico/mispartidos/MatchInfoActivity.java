@@ -29,29 +29,36 @@ public class MatchInfoActivity extends Activity {
     private Button refresh;
     private ProgressBar progress;
     private boolean loading;
+    private boolean finished;
     private MatchSummary lastSummary;
 
-    @Override protected void onCreate(Bundle state){super.onCreate(state);try{match=Match.fromJson(new JSONObject(getIntent().getStringExtra("match")));}catch(Exception e){finish();return;}build();lastSummary=new AppStore(this).cachedMatchSummary(match.fixtureId);if(lastSummary!=null)render(lastSummary);else load(false);}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);try{match=Match.fromJson(new JSONObject(getIntent().getStringExtra("match")));}catch(Exception e){finish();return;}finished=getIntent().getBooleanExtra("finished",false);build();lastSummary=new AppStore(this).cachedMatchSummary(match.fixtureId);if(lastSummary!=null)render(lastSummary);else if(finished)renderFinishedWithoutSummary();else load(false);}
 
     private void build(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.rgb(248,250,252));
         LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(8),dp(8),dp(12),dp(8));bar.setBackgroundColor(Color.rgb(15,23,42));
         Button back=button("‹");back.setTextSize(28);back.setTextColor(Color.WHITE);back.setBackgroundColor(Color.TRANSPARENT);back.setOnClickListener(v->finish());
         TextView title=text("Información del partido",20,Color.WHITE,true);bar.addView(back,new LinearLayout.LayoutParams(dp(54),dp(54)));bar.addView(title,new LinearLayout.LayoutParams(0,-2,1));root.addView(bar);
-        LinearLayout actions=new LinearLayout(this);actions.setPadding(dp(12),dp(8),dp(12),dp(8));Button google=button("Buscar en Google");google.setOnClickListener(v->searchGoogle());refresh=button("Actualizar información");refresh.setOnClickListener(v->load(true));actions.addView(google,new LinearLayout.LayoutParams(0,-2,1));actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));root.addView(actions);
+        LinearLayout actions=new LinearLayout(this);actions.setPadding(dp(12),dp(8),dp(12),dp(8));Button google=button("Buscar en Google");google.setOnClickListener(v->searchGoogle());refresh=button("Actualizar información");refresh.setOnClickListener(v->load(true));refresh.setVisibility(finished?View.GONE:View.VISIBLE);actions.addView(google,new LinearLayout.LayoutParams(0,-2,1));actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));root.addView(actions);
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         ScrollView scroll=new ScrollView(this);content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(18),dp(18),dp(18),dp(26));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root);
     }
 
-    private void load(boolean force){if(loading)return;loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);if(force||lastSummary==null)showLoading(force);ApiClient.matchSummary(this,match,force,(summary,error)->{loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);if(summary!=null){lastSummary=summary;render(lastSummary);}else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}else renderError(error);});}
+    private void load(boolean force){if(finished){if(lastSummary!=null)render(lastSummary);else renderFinishedWithoutSummary();return;}if(loading)return;loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);if(force||lastSummary==null)showLoading(force);ApiClient.matchSummary(this,match,force,(summary,error)->{loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);if(summary!=null){lastSummary=summary;render(lastSummary);}else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}else renderError(error);});}
+    private void renderFinishedWithoutSummary(){
+        content.removeAllViews();addHeader();
+        addNotice("Este encuentro figura entre los resultados recientes. No se consulta la IA para reconstruir la previa.");
+        section("Resultado y resumen","Usá Buscar en Google para consultar el marcador, los goles y el resumen del partido.");
+    }
     private void showLoading(boolean refreshRequest){content.removeAllViews();addHeader();TextView value=text(refreshRequest?"Actualizando información…":"Buscando información del partido…",16,Color.DKGRAY,false);value.setGravity(Gravity.CENTER);value.setPadding(0,dp(38),0,dp(38));content.addView(value);}
     private void addHeader(){
         TextView game=text(match.local()+" vs. "+match.visitante(),24,Color.rgb(15,23,42),true);
         game.setGravity(Gravity.CENTER);content.addView(game);
         String phase;
         long now=System.currentTimeMillis();
-        if(AppStore.isInProgress(match))phase="En juego · seguimiento en Google";
+        if(finished)phase="Resultado reciente · seguimiento en Google";
+        else if(AppStore.isInProgress(match))phase="En juego · seguimiento en Google";
         else if(now<match.kickoff)phase="Próximo partido";
         else if(match.hasScore())phase="Resultado registrado · consultar estado en Google";
         else phase="Partido programado o pendiente de resultado";
@@ -66,7 +73,7 @@ public class MatchInfoActivity extends Activity {
     }
     private String dateText(){SimpleDateFormat f=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm",new Locale("es","UY"));f.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));String s=f.format(new Date(match.kickoff));return s.substring(0,1).toUpperCase(new Locale("es","UY"))+s.substring(1);}
 
-    private void render(MatchSummary s){content.removeAllViews();addHeader();if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
+    private void render(MatchSummary s){content.removeAllViews();addHeader();if(finished)addNotice("Información previa guardada. Para el resultado y los goles, consultá Google.");if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice("No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
         boolean started=System.currentTimeMillis()>=match.kickoff;
         if(started)addNotice("Los datos de contexto y forma de los equipos corresponden a la previa del encuentro. Para el desarrollo y resultado actualizado, consultá Google.");
         section(started?"Contexto previo al partido":"Contexto",valueOrFallback(s.context));
