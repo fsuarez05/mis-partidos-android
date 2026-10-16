@@ -62,10 +62,10 @@ public class MatchInfoActivity extends Activity {
                     try{
                         int usados=Integer.parseInt(datos[1]),total=Integer.parseInt(datos[2]),disponibles=Integer.parseInt(datos[3]);
                         if(usados>=0&&total>0&&disponibles>=0)
-                            aviso+="\\n\\nConsumo estimado del mes: "+usados+" de "+total+" créditos. Disponibles según el presupuesto de hoy: "+disponibles+".";
+                            aviso+="\n\nConsumo estimado del mes: "+usados+" de "+total+" créditos. Disponibles según el presupuesto de hoy: "+disponibles+".";
                     }catch(NumberFormatException ignored){}
                 }
-                aviso+="\\n\\n¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.";
+                aviso+="\n\n¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.";
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("Límite diario de Tavily")
                     .setMessage(aviso)
