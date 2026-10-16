@@ -542,15 +542,25 @@ class ApiClient {
                         &&System.currentTimeMillis()-previousAt<24L*60L*60L*1000L;
                 // A recent, richer response is worth keeping; older context must not
                 // indefinitely defeat newer information merely because it is longer.
-                if(useful&&(!previousUseful||!previousRecent
-                        ||summary.informationScore()>=previous.informationScore())){
+                boolean weakerFallback=previousUseful&&previousRecent
+                        &&summary.fallback&&!previous.fallback;
+                boolean richer=previousUseful
+                        &&(summary.informationScore()>previous.informationScore()
+                        ||(summary.informationScore()==previous.informationScore()
+                        &&summary.sources.size()>=previous.sources.size()));
+                boolean accept=useful&&(!previousUseful
+                        ||(!weakerFallback&&(!previousRecent||richer)));
+                if(accept){
                     store.saveMatchSummary(match.fixtureId,summary);
                 }else if(previousUseful){
+                    boolean newFallback=summary.fallback;
                     summary=previous;
                     summary.fallback=true;
-                    summary.fallbackReason=useful
-                            ?"La nueva consulta aportó menos información que la guardada recientemente."
-                            :"La nueva consulta no aportó información útil.";
+                    summary.fallbackReason=!useful
+                            ?"La nueva consulta no aportó información útil."
+                            :newFallback
+                            ?"La nueva consulta devolvió información de respaldo; se conserva la anterior."
+                            :"La nueva consulta no mejoró la información guardada recientemente.";
                 }
             }catch(Exception e){error="No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
             MatchSummary finalSummary=summary;String finalError=error;
