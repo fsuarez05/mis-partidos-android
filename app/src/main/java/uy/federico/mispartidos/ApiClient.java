@@ -80,7 +80,7 @@ class ApiClient {
                         today=parseToday(response,clubCompetitions,nationalCompetitions);
                         allToday=parseAllToday(response);
                         recentResults.addAll(parseFavoriteResults(response,store));
-                    }catch(Exception e){failures.add("partidos de hoy");reasons.add(e.getMessage());}
+                    }catch(Exception e){failures.add("partidos de hoy");reasons.add("GOAL API no respondió; se conservan los datos anteriores disponibles.");}
                     try{
                         java.util.Calendar yesterday=java.util.Calendar.getInstance();yesterday.add(java.util.Calendar.DAY_OF_YEAR,-1);
                         String previousDate=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(yesterday.getTime());
@@ -98,7 +98,15 @@ class ApiClient {
                 }
 
                 if(favorites.isEmpty()&&!failures.isEmpty())favorites.putAll(previousFavorites);
-                if(today.isEmpty()&&failures.contains("partidos de hoy"))today=store.apiTodayMatches();
+                if(today.isEmpty()&&failures.contains("partidos de hoy")){
+                    // Conservamos el último listado únicamente si corresponde a hoy.
+                    List<Match> previousToday=store.apiTodayMatches();
+                    long now=System.currentTimeMillis();
+                    java.util.Calendar midnight=java.util.Calendar.getInstance(TimeZone.getTimeZone("America/Montevideo"));
+                    midnight.setTimeInMillis(now);midnight.set(java.util.Calendar.HOUR_OF_DAY,0);midnight.set(java.util.Calendar.MINUTE,0);midnight.set(java.util.Calendar.SECOND,0);midnight.set(java.util.Calendar.MILLISECOND,0);
+                    long start=midnight.getTimeInMillis(),end=start+24L*60L*60L*1000L;
+                    for(Match old:previousToday)if(old.kickoff>=start&&old.kickoff<end)today.add(old);
+                }
                 reconcileTodayFavorites(store,allToday,favorites);
                 today=reconcileTodayFavorites(store,today,favorites);
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
