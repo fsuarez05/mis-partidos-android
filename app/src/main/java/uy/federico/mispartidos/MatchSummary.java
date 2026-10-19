@@ -25,7 +25,7 @@ class MatchSummary {
             r.broadcastCountry=transmission.optString("pais","Uruguay");
             List<String> outlets=new ArrayList<>();
             readStrings(transmission.optJSONArray("canales"),outlets);readStrings(transmission.optJSONArray("streaming"),outlets);
-            if(outlets.isEmpty()){String value=transmission.optString("texto");if(!value.trim().isEmpty())outlets.add(value.trim());}
+            if(outlets.isEmpty()&&transmission.optBoolean("confirmada",false)){String value=transmission.optString("texto");if(!value.trim().isEmpty())outlets.add(value.trim());}
             r.broadcastText=android.text.TextUtils.join(" / ",outlets);
         }else{
             r.broadcastCountry=j.optString("paisTransmision","Uruguay");
