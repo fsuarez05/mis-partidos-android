@@ -122,8 +122,11 @@ public class MatchInfoActivity extends Activity {
         section(started?"Contexto previo al partido":"Contexto",valueOrFallback(s.context));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.home.name,match.local()),teamText(s.home));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.away.name,match.visitante()),teamText(s.away));
-        if(!started&&!s.broadcastText.trim().isEmpty())section("📺 Dónde verlo",s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry));
-        else if(!started)section("📺 Dónde verlo","Transmisión no confirmada para Uruguay.");
+        if(!finished){
+            String titulo=AppStore.isInProgress(match)?"📺 Dónde verlo ahora":"📺 Dónde verlo";
+            if(!s.broadcastText.trim().isEmpty())section(titulo,s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry));
+            else section(titulo,"Transmisión no confirmada para Uruguay.");
+        }
         if(!s.news.isEmpty()){StringBuilder b=new StringBuilder();for(String n:s.news)b.append("• ").append(n).append('\n');section(started?"Novedades consultadas":"Últimas novedades",trim(b));}
         if(s.absences.isEmpty())section(started?"Bajas reportadas antes del partido":"Bajas reportadas","No se encontraron bajas verificables en las fuentes consultadas. Esto no significa que ambos equipos tengan el plantel completo.");else{java.util.LinkedHashMap<String,java.util.ArrayList<MatchSummary.Absence>> grupos=new java.util.LinkedHashMap<>();for(MatchSummary.Absence a:s.absences){String equipo=a.team==null||a.team.trim().isEmpty()?"Equipo no especificado":a.team.trim();if(!grupos.containsKey(equipo))grupos.put(equipo,new java.util.ArrayList<>());grupos.get(equipo).add(a);}title(started?"Bajas reportadas antes del partido":"Bajas reportadas");for(java.util.Map.Entry<String,java.util.ArrayList<MatchSummary.Absence>> grupo:grupos.entrySet()){TextView encabezado=text(grupo.getKey(),16,Color.rgb(15,23,42),true);encabezado.setPadding(0,dp(12),0,dp(4));content.addView(encabezado);StringBuilder lista=new StringBuilder();for(MatchSummary.Absence a:grupo.getValue()){lista.append("• ").append(a.player==null||a.player.trim().isEmpty()?"Jugador sin especificar":a.player);if(a.reason!=null&&!a.reason.trim().isEmpty())lista.append(" — ").append(a.reason);lista.append('\n');}TextView detalle=text(trim(lista),16,Color.rgb(51,65,85),false);detalle.setLineSpacing(0,1.15f);detalle.setPadding(dp(12),0,0,dp(8));content.addView(detalle);}}
         if(!s.sources.isEmpty()){title("Fuentes");for(MatchSummary.Source source:s.sources)addSource(source);}
