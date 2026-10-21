@@ -38,7 +38,7 @@ class MatchSummary {
         return r;
     }
     private static void readStrings(JSONArray values,List<String> out){if(values==null)return;for(int i=0;i<values.length();i++){String value=values.optString(i).trim();if(!value.isEmpty()&&!out.contains(value))out.add(value);}}
-    int informationScore(){int score=context.trim().isEmpty()?0:2;if(!home.form.trim().isEmpty())score+=2;if(!away.form.trim().isEmpty())score+=2;score+=Math.min(2,news.size());score+=Math.min(2,absences.size());score+=Math.min(2,sources.size());return score;}
+    int informationScore(){int score=context.trim().isEmpty()?0:2;if(!home.form.trim().isEmpty())score+=2;if(!away.form.trim().isEmpty())score+=2;if(!broadcastText.trim().isEmpty())score+=2;score+=Math.min(2,news.size());score+=Math.min(2,absences.size());score+=Math.min(2,sources.size());return score;}
     private static void readTeam(JSONObject j,TeamInfo out){if(j==null)return;out.name=ApiClient.displayTeamName(j.optString("nombre"));out.form=sanitizeTemporalClaims(j.optString("comoLlega"));out.quality=j.optString("calidadInformacion");}
     private static String sanitizeTemporalClaims(String value){
         String[]sentences=(value==null?"":value).trim().split("(?<=[.!?])\\s+");StringBuilder clean=new StringBuilder();
