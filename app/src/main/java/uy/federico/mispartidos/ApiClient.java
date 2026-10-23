@@ -547,6 +547,7 @@ class ApiClient {
                 summary=MatchSummary.fromJson(data);
                 AppStore store=new AppStore(context);
                 MatchSummary previous=store.cachedMatchSummary(match.fixtureId);
+                summary.preserveConfirmedBroadcastFrom(previous);
                 boolean useful=summary.found&&summary.informationScore()>0;
                 boolean previousUseful=previous!=null&&previous.found&&previous.informationScore()>0;
                 long previousAt=store.cachedMatchSummaryTime(match.fixtureId);
@@ -554,14 +555,11 @@ class ApiClient {
                         &&System.currentTimeMillis()-previousAt<24L*60L*60L*1000L;
                 // A recent, richer response is worth keeping; older context must not
                 // indefinitely defeat newer information merely because it is longer.
-                boolean weakerFallback=previousUseful&&previousRecent
-                        &&summary.fallback&&!previous.fallback;
-                boolean richer=previousUseful
-                        &&(summary.informationScore()>previous.informationScore()
-                        ||(summary.informationScore()==previous.informationScore()
-                        &&summary.sources.size()>=previous.sources.size()));
-                boolean accept=useful&&(!previousUseful
-                        ||(!weakerFallback&&(!previousRecent||richer)));
+                boolean accept=MatchSummaryCachePolicy.shouldAccept(useful,previousUseful,previousRecent,
+                        summary.fallback,previous!=null&&previous.fallback,summary.informationScore(),
+                        previousUseful?previous.informationScore():0,summary.sources.size(),
+                        previousUseful?previous.sources.size():0,summary.broadcastConfirmed,
+                        previous!=null&&previous.broadcastConfirmed);
                 if(accept){
                     store.saveMatchSummary(match.fixtureId,summary);
                 }else if(previousUseful){

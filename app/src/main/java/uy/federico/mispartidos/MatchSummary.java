@@ -9,7 +9,7 @@ class MatchSummary {
     static class TeamInfo {String name="",form="",quality="";}
     static class Absence {String team="",player="",reason="";}
     static class Source {String title="",url="",date="",type="";}
-    boolean found,fromCache,fallback;
+    boolean found,fromCache,fallback,broadcastConfirmed;
     String context="",updated="",fallbackReason="",broadcastCountry="",broadcastText="";
     final TeamInfo home=new TeamInfo(),away=new TeamInfo();
     final List<String> news=new ArrayList<>();
@@ -20,17 +20,8 @@ class MatchSummary {
     static MatchSummary fromJson(JSONObject j){
         MatchSummary r=new MatchSummary();r.rawJson=j.toString();r.found=j.optBoolean("encontrado",true);r.context=j.optString("contexto");
         r.updated=j.optString("actualizado");r.fromCache=j.optBoolean("desdeCache");r.fallback=j.optBoolean("respaldoPorError");r.fallbackReason=j.optString("motivoRespaldo");
-        JSONObject transmission=j.optJSONObject("transmision");
-        if(transmission!=null){
-            r.broadcastCountry=transmission.optString("pais","Uruguay");
-            List<String> outlets=new ArrayList<>();
-            readStrings(transmission.optJSONArray("canales"),outlets);readStrings(transmission.optJSONArray("streaming"),outlets);
-            if(outlets.isEmpty()&&transmission.optBoolean("confirmada",false)){String value=transmission.optString("texto");if(!value.trim().isEmpty())outlets.add(value.trim());}
-            r.broadcastText=android.text.TextUtils.join(" / ",outlets);
-        }else{
-            r.broadcastCountry=j.optString("paisTransmision","Uruguay");
-            r.broadcastText=j.optString("dondeVer",j.optString("transmision",""));
-        }
+        TransmissionInfo transmission=TransmissionInfo.fromJson(j.optJSONObject("transmision"));
+        r.broadcastConfirmed=transmission.confirmed;r.broadcastCountry=transmission.country;r.broadcastText=transmission.text;
         readTeam(j.optJSONObject("local"),r.home);readTeam(j.optJSONObject("visitante"),r.away);
         JSONArray n=j.optJSONArray("novedades");if(n!=null)for(int i=0;i<n.length();i++){String value=sanitizeTemporalClaims(n.optString(i));if(!value.isEmpty())r.news.add(value);}
         JSONArray b=j.optJSONArray("bajas");if(b!=null)for(int i=0;i<b.length();i++){JSONObject x=b.optJSONObject(i);if(x==null)continue;Absence a=new Absence();a.team=ApiClient.displayTeamName(x.optString("equipo"));a.player=x.optString("jugador");a.reason=x.optString("motivo");r.absences.add(a);}
@@ -39,6 +30,15 @@ class MatchSummary {
     }
     private static void readStrings(JSONArray values,List<String> out){if(values==null)return;for(int i=0;i<values.length();i++){String value=values.optString(i).trim();if(!value.isEmpty()&&!out.contains(value))out.add(value);}}
     int informationScore(){int score=context.trim().isEmpty()?0:2;if(!home.form.trim().isEmpty())score+=2;if(!away.form.trim().isEmpty())score+=2;if(!broadcastText.trim().isEmpty())score+=2;score+=Math.min(2,news.size());score+=Math.min(2,absences.size());score+=Math.min(2,sources.size());return score;}
+    void preserveConfirmedBroadcastFrom(MatchSummary previous){
+        if(previous==null||!previous.broadcastConfirmed||broadcastConfirmed)return;
+        broadcastConfirmed=true;broadcastCountry=previous.broadcastCountry;broadcastText=previous.broadcastText;
+        try{
+            JSONObject current=new JSONObject(rawJson),old=new JSONObject(previous.rawJson);
+            JSONObject transmission=old.optJSONObject("transmision");
+            if(transmission!=null){current.put("transmision",transmission);rawJson=current.toString();}
+        }catch(Exception ignored){}
+    }
     private static void readTeam(JSONObject j,TeamInfo out){if(j==null)return;out.name=ApiClient.displayTeamName(j.optString("nombre"));out.form=sanitizeTemporalClaims(j.optString("comoLlega"));out.quality=j.optString("calidadInformacion");}
     private static String sanitizeTemporalClaims(String value){
         String[]sentences=(value==null?"":value).trim().split("(?<=[.!?])\\s+");StringBuilder clean=new StringBuilder();
