@@ -710,14 +710,14 @@ class ApiClient {
     }
 
     private static JSONObject request(String action,Map<String,String> values)throws Exception{
-        IOException last=null;int maxAttempts="fixturesByDate".equals(action)?2:3;for(int attempt=0;attempt<maxAttempts;attempt++){try{return requestOnce(action,values);}catch(IOException e){last=e;if(attempt<maxAttempts-1)try{Thread.sleep(700L*(attempt+1));}catch(InterruptedException ignored){Thread.currentThread().interrupt();}}}
+        IOException last=null;int maxAttempts="matchSummary".equals(action)?1:("fixturesByDate".equals(action)?2:3);for(int attempt=0;attempt<maxAttempts;attempt++){try{return requestOnce(action,values);}catch(IOException e){last=e;if(attempt<maxAttempts-1)try{Thread.sleep(700L*(attempt+1));}catch(InterruptedException ignored){Thread.currentThread().interrupt();}}}
         throw new Exception("Sin conexión temporal. Probá actualizar nuevamente.",last);
     }
 
     private static JSONObject requestOnce(String action,Map<String,String> values)throws Exception{
         StringBuilder u=new StringBuilder(proxyUrl);u.append(proxyUrl.contains("?")?'&':'?').append("action=").append(enc(action)).append("&token=").append(enc(proxyToken));
         for(Map.Entry<String,String> e:values.entrySet())u.append('&').append(enc(e.getKey())).append('=').append(enc(e.getValue()));
-        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout("matchSummary".equals(action)?120000:("fixturesByDate".equals(action)?20000:45000));c.setInstanceFollowRedirects(true);
+        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout("matchSummary".equals(action)?75000:("fixturesByDate".equals(action)?20000:45000));c.setInstanceFollowRedirects(true);
         int status=c.getResponseCode();InputStream stream=status>=200&&status<400?c.getInputStream():c.getErrorStream();
         BufferedReader reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8));StringBuilder body=new StringBuilder();String line;
         while((line=reader.readLine())!=null)body.append(line);reader.close();c.disconnect();
