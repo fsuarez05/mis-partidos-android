@@ -39,6 +39,8 @@ public class NewsActivity extends Activity {
     private Button todayFilter;
     private TextView teamUpdateStatus;
     private boolean last24Hours=false;
+    private boolean newestFirst=false;
+    private Button orderButton;
     private List<NewsItem> allNews=new ArrayList<>();
     private final SimpleDateFormat dateFormat=new SimpleDateFormat("dd/MM · HH:mm",new Locale("es","UY"));
 
@@ -73,6 +75,18 @@ public class NewsActivity extends Activity {
         quickFilters.addView(allFilter,new LinearLayout.LayoutParams(0,dp(44),1));
         quickFilters.addView(todayFilter,new LinearLayout.LayoutParams(0,dp(44),1));
         root.addView(quickFilters);
+        orderButton=button("Orden: por equipo (rondas) ▾");
+        orderButton.setOnClickListener(v->new android.app.AlertDialog.Builder(this)
+            .setTitle("Ordenar noticias")
+            .setSingleChoiceItems(new String[]{"Una por equipo, por rondas","Más recientes primero"},newestFirst?1:0,(dialog,which)->{
+                newestFirst=which==1;
+                orderButton.setText(newestFirst?"Orden: más recientes ▾":"Orden: por equipo (rondas) ▾");
+                getPreferences(MODE_PRIVATE).edit().putBoolean("news_newest_first",newestFirst).apply();
+                dialog.dismiss();renderFiltered();
+            }).setNegativeButton("Cancelar",null).show());
+        newestFirst=getPreferences(MODE_PRIVATE).getBoolean("news_newest_first",false);
+        if(newestFirst)orderButton.setText("Orden: más recientes ▾");
+        LinearLayout.LayoutParams orderParams=new LinearLayout.LayoutParams(-1,dp(46));orderParams.setMargins(dp(12),0,dp(12),dp(4));root.addView(orderButton,orderParams);
         updateFilterButtons();
         teamUpdateStatus=text("",12,Color.DKGRAY,false);
         teamUpdateStatus.setPadding(dp(16),dp(4),dp(16),dp(4));
@@ -134,6 +148,7 @@ public class NewsActivity extends Activity {
         String query=normalized(teamFilter.getText().toString());
         List<NewsItem> items=new ArrayList<>();
         for(NewsItem item:allNews)if((query.isEmpty()||normalized(item.teams).contains(query))&&(!last24Hours||item.publishedAt>=System.currentTimeMillis()-24L*60L*60L*1000L))items.add(item);
+        if(newestFirst)Collections.sort(items,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
         showTeamUpdate();
         content.removeAllViews();
         if(items.isEmpty()){
