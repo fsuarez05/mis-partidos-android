@@ -32,8 +32,8 @@ final class NewsRepository {
     interface Callback { void onComplete(List<NewsItem> items,boolean updated,String message); }
 
     static final long CACHE_MS=4L*60L*60L*1000L;
-    private static final int MAX_PER_TEAM=6;
-    private static final int MAX_TOTAL=60;
+    private static final int MAX_PER_TEAM=12;
+    private static final int MAX_TOTAL=180;
     private static final long MAX_AGE_MS=7L*24L*60L*60L*1000L;
     private static final ExecutorService EXECUTOR=Executors.newSingleThreadExecutor();
     private static final ExecutorService FEEDS=Executors.newFixedThreadPool(3);
@@ -161,8 +161,8 @@ final class NewsRepository {
     }
 
     private boolean isRelevant(TeamQuery team,String title,String source){
-        String value=normalize(title+" "+source);
-        if(team.national)return value.contains(normalize(team.name))&&(value.contains("seleccion")||value.contains("futbol")||value.contains("mundial")||value.contains("eliminatoria")||value.contains("amistoso"));
+        String value=normalize(title);
+        if(team.national)return value.contains(normalize(team.name))&&(value.contains("seleccion")||value.contains("futbol")||value.contains("mundial")||value.contains("eliminatoria")||value.contains("amistoso"))&&!value.contains("powerchair")&&!value.contains("baloncesto")&&!value.contains("basket")&&!value.contains("futsal");
         if("Liverpool (Uruguay)".equals(team.name))return value.contains("liverpool")&&(value.contains("uruguay")||value.contains("montevideo")||value.contains("belvedere"))&&!value.contains("premier league");
         if("Liverpool".equals(team.name))return value.contains("liverpool")&&(value.contains("premier")||value.contains("anfield")||value.contains("england")||value.contains("ingles"));
         if("Inter".equals(team.name))return value.contains("inter")&&(value.contains("milan")||value.contains("serie a")||value.contains("italia"));
@@ -224,7 +224,7 @@ final class NewsRepository {
     private boolean excludedNews(String title,String source){
         String n=normalize(title);
         String src=normalize(source);
-        if(n.contains("femenin")||n.contains("women")||n.contains("womens")||
+        if(n.contains("entradas")||n.contains("comprar boletos")||n.contains("comprar tickets")||n.contains("ticket prices")||n.contains("buy tickets")||n.contains("abonos")||n.contains("powerchair")||n.contains("basquet")||n.contains("baloncesto")||n.contains("basketball")||n.contains("futbol sala")||n.contains("futsal")||n.contains("liga uruguaya de basquet")||n.contains("union atletica")||n.contains("femenin")||n.contains("women")||n.contains("womens")||
            n.contains("femeni")||n.contains("liga f ")||n.contains("world cup women")||
            n.contains("sub 19")||n.contains("sub19")||n.contains("sub 17")||
            n.contains("sub17")||n.contains("u19 ")||n.contains("u17 ")||
@@ -250,7 +250,7 @@ final class NewsRepository {
     }
 
     private List<NewsItem> dedupe(List<NewsItem> values){
-        Collections.sort(values,(a,b)->{int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
+        Collections.sort(values,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
         LinkedHashMap<String,List<NewsItem>> byTeam=new LinkedHashMap<>();
         List<NewsItem> globallySelected=new ArrayList<>();
         for(NewsItem item:values){
@@ -282,7 +282,7 @@ final class NewsRepository {
                 List<NewsItem> articles=byTeam.get(team);
                 if(round<articles.size())batch.add(articles.get(round));
             }
-            Collections.sort(batch,(a,b)->{long hours=Math.abs(a.publishedAt-b.publishedAt)/(60L*60L*1000L);if(hours>=24)return Long.compare(b.publishedAt,a.publishedAt);int diff=Integer.compare(priority(b),priority(a));return diff!=0?diff:Long.compare(b.publishedAt,a.publishedAt);});
+            Collections.sort(batch,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
             for(NewsItem item:batch){if(balanced.size()>=MAX_TOTAL)break;balanced.add(item);}
         }
         return balanced;
