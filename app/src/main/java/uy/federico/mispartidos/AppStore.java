@@ -166,10 +166,30 @@ public class AppStore {
     Set<String> dynamicSuggestedClubCompetitions(Set<String>teams){Set<String>result=new LinkedHashSet<>();try{JSONObject map=new JSONObject(prefs.getString("dynamic_team_competitions","{}"));for(String team:teams){JSONArray values=map.optJSONArray(team);if(values!=null)for(int i=0;i<values.length();i++)result.add(values.optString(i));}}catch(Exception ignored){}return result;}
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
+    private static String favoriteTeamKey(String name){
+        if(name==null)return "";
+        String key=java.text.Normalizer.normalize(name.toLowerCase(java.util.Locale.ROOT),java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}","").replaceAll("[^a-z0-9]","");
+        if(key.equals("atleticomadrid")||key.equals("atleticodemadrid")||key.equals("atleticomadridfc"))return "atleticomadrid";
+        return key;
+    }
+    private static boolean matchesFavorite(Match match,Set<String> favorites){
+        String home=favoriteTeamKey(match.local()),away=favoriteTeamKey(match.visitante());
+        for(String favorite:favorites){
+            String key=favoriteTeamKey(favorite);
+            if(!key.isEmpty()&&(key.equals(home)||key.equals(away)))return true;
+        }
+        return false;
+    }
+    private List<Match> allFavoriteCandidates(){
+        List<Match> matches=new ArrayList<>(readMatches("api_favorite_matches"));
+        matches.addAll(readMatches("api_today_matches"));
+        return matches;
+    }
     List<Match>upcoming(){
         long now=System.currentTimeMillis(),horizon=now+UPCOMING_HORIZON_MS;Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m))r.add(m);
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
-        for(Match m:readMatches("api_favorite_matches"))if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m)&&favorites.contains(m.team)){
+        for(Match m:allFavoriteCandidates())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m)&&matchesFavorite(m,favorites)){
             String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;
             // El mismo fixture puede llegar una vez por cada favorito. El ID
             // real es estable incluso si GOAL devuelve un nombre traducido en
