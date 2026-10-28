@@ -131,6 +131,10 @@ public class AppStore {
     List<Match> apiTodayMatches(){return seniorMatches(readMatches("api_today_matches"));}
     List<Match> recentResults(){return seniorMatches(readMatches("api_recent_results"));}
     void saveApiMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
+    void saveLiveMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_live_refresh",System.currentTimeMillis()).apply();}
+    long lastLiveRefresh(){return prefs.getLong("api_last_live_refresh",0L);}
+    long lastLiveRefreshStarted(){return prefs.getLong("api_last_live_refresh_started",0L);}
+    void saveLiveRefreshStarted(long value){prefs.edit().putLong("api_last_live_refresh_started",value).apply();}
     boolean dailySummaryEnabled(){return prefs.getBoolean("daily_summary",false);}
     void saveDailySummaryEnabled(boolean enabled){prefs.edit().putBoolean("daily_summary",enabled).apply();}
     int dailySummaryHour(){return prefs.getInt("daily_summary_hour",9);}

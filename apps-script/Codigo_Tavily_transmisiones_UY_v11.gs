@@ -182,7 +182,8 @@ function doGet(e) {
         ? fetchPagedFixtures_(
             request.path,
             Number(request.query.limit),
-            request.cacheSeconds
+            String(params.liveRefresh || '').toLowerCase() === 'true' ? 240 : request.cacheSeconds,
+            String(params.liveRefresh || '').toLowerCase() === 'true'
           )
 
         : fetchApi_(
@@ -321,7 +322,7 @@ function diagnostic_() {
  * El contrato público admite hasta 500, pero el endpoint de fechas puede
  * rechazar ese tamaño. Se pagina en bloques de 100 y se unifica la respuesta.
  */
-function fetchPagedFixtures_(path, requestedLimit, cacheSeconds) {
+function fetchPagedFixtures_(path, requestedLimit, cacheSeconds, liveRefresh) {
   // GOAL puede devolver más de 100 fixtures en un día. Cada llamada sigue
   // limitada a bloques de 100, pero recorremos páginas hasta un máximo de 500.
   const target = Math.max(1, Math.min(Number(requestedLimit) || 500, 500));
@@ -330,7 +331,7 @@ function fetchPagedFixtures_(path, requestedLimit, cacheSeconds) {
   let offset = 0;
 
   while (all.length < target) {
-    const response = fetchApi_(path, { limit: String(pageSize), offset: String(offset) }, cacheSeconds);
+    const response = fetchApi_(path, { limit: String(pageSize), offset: String(offset) }, cacheSeconds, liveRefresh);
     const page = dataArray_(response);
     all = all.concat(page);
 
@@ -352,7 +353,7 @@ function fetchPagedFixtures_(path, requestedLimit, cacheSeconds) {
   };
 }
 
-function fetchApi_(path, query, cacheSeconds) {
+function fetchApi_(path, query, cacheSeconds, liveRefresh) {
   const key = PropertiesService.getScriptProperties().getProperty('GOAL_API_KEY');
   if (!key) throw new Error('Falta configurar GOAL_API_KEY en las propiedades del script.');
 
@@ -361,7 +362,7 @@ function fetchApi_(path, query, cacheSeconds) {
   }).join('&');
   const url = API_BASE + path + (queryString ? '?' + queryString : '');
   const cache = CacheService.getScriptCache();
-  const cacheKey = 'goal_' + digest_(url);
+  const cacheKey = (liveRefresh ? 'goal_live_' : 'goal_') + digest_(url);
   const cached = cache.get(cacheKey);
   if (cached) return JSON.parse(cached);
 

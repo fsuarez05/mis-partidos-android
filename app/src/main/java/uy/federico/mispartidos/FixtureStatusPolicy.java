@@ -14,7 +14,7 @@ final class FixtureStatusPolicy {
 
     static String classify(String rawStatus, long kickoff, long now, long normalDurationMs) {
         String status = normalize(rawStatus);
-        if (status.contains("postponed") || status.contains("cancelled") || status.contains("canceled") || status.contains("abandoned")) return POSTPONED;
+        if (status.contains("postponed") || status.contains("suspended") || status.contains("cancelled") || status.contains("canceled") || status.contains("abandoned")) return POSTPONED;
         // A future kickoff is authoritative if GOAL returns an inconsistent terminal status.
         if (kickoff > now) return SCHEDULED;
         if (status.contains("finished") || status.contains("full time") || status.equals("ft")

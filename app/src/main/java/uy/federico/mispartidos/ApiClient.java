@@ -52,6 +52,7 @@ class ApiClient {
         String label(){return season==null||season.isEmpty()?name:name+" · "+season;}
     }
     private static String proxyUrl="",proxyToken="";
+    private static final AtomicBoolean DATA_SYNC_IN_PROGRESS=new AtomicBoolean(false);
     private static final Map<String,String> COUNTRY_NAMES_ES=buildCountryNamesEs();
 
     static boolean configured(Context context) {
@@ -64,6 +65,7 @@ class ApiClient {
         if(!configured(context)){callback.done(false,"Falta configurar la conexión");return;}
         proxyUrl=store.proxyUrl();proxyToken=store.proxyToken();
         if(!force&&!store.needsApiSync()){callback.done(true,"Datos actualizados");return;}
+        if(!DATA_SYNC_IN_PROGRESS.compareAndSet(false,true)){callback.done(false,"Ya hay una actualización en curso");return;}
         new Thread(()->{
             try{
                 Map<Long,Match> favorites=new ConcurrentHashMap<>();
@@ -129,11 +131,91 @@ class ApiClient {
                     store.saveSyncPendingDetails(pending.toString());
                 }
                 String message=failures.isEmpty()?"Actualizado ahora":"Actualizado con datos pendientes de "+failures.size()+(failures.size()==1?" elemento":" elementos");
-                new Handler(Looper.getMainLooper()).post(()->callback.done(true,message));
+                new Handler(Looper.getMainLooper()).post(()->{DATA_SYNC_IN_PROGRESS.set(false);callback.done(true,message);});
             }catch(Exception e){
-                new Handler(Looper.getMainLooper()).post(()->callback.done(false,"No se pudo actualizar: "+e.getMessage()));
+                new Handler(Looper.getMainLooper()).post(()->{DATA_SYNC_IN_PROGRESS.set(false);callback.done(false,"No se pudo actualizar: "+e.getMessage());});
             }
         }).start();
+    }
+
+    /** Refreshes only saved, selected fixtures that are currently in progress. */
+    static void refreshLive(Context context, Callback callback) {
+        AppStore store=new AppStore(context);
+        if(!configured(context)){callback.done(false,"Falta configurar la conexión");return;}
+        List<Match> candidates=liveCandidates(store);
+        if(candidates.isEmpty()){callback.done(true,"Sin partidos en juego");return;}
+        if(!DATA_SYNC_IN_PROGRESS.compareAndSet(false,true)){callback.done(false,"Ya hay una actualización en curso");return;}
+        proxyUrl=store.proxyUrl();proxyToken=store.proxyToken();
+        new Thread(()->{
+            try{
+                SimpleDateFormat localDate=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY"));
+                localDate.setTimeZone(TimeZone.getTimeZone("America/Montevideo"));
+                JSONObject response=request("fixturesByDate",params("date",localDate.format(new Date()),"limit","500","liveRefresh","true"));
+                if(!LiveRefreshPolicy.isUsableFixtureResponse(response))throw new Exception("Respuesta incompleta de GOAL API");
+                applyLiveResponse(store,response,candidates,System.currentTimeMillis());
+                new Handler(Looper.getMainLooper()).post(()->{DATA_SYNC_IN_PROGRESS.set(false);callback.done(true,"Resultados actualizados");});
+            }catch(Exception e){
+                new Handler(Looper.getMainLooper()).post(()->{DATA_SYNC_IN_PROGRESS.set(false);callback.done(false,"No se pudieron actualizar los resultados"+(e.getMessage()==null?"":" · "+e.getMessage()));});
+            }
+        }).start();
+    }
+
+    private static List<Match> liveCandidates(AppStore store){
+        Map<String,Match> candidates=new LinkedHashMap<>();
+        for(Match match:store.upcoming())if(!match.manual&&AppStore.isInProgress(match))candidates.put(fixtureKey(match),match);
+        for(Match match:store.todayByCompetitions())if(!match.manual&&AppStore.isInProgress(match))candidates.put(fixtureKey(match),match);
+        candidates.remove("");return new ArrayList<>(candidates.values());
+    }
+
+    private static void applyLiveResponse(AppStore store,JSONObject response,List<Match> candidates,long now)throws Exception{
+        JSONArray fixtures=apiData(response);Map<String,JSONObject> byFixture=new HashMap<>();
+        for(int i=0;i<fixtures.length();i++){
+            JSONObject fixture=fixtures.optJSONObject(i);if(fixture==null)continue;
+            String id=fixture.optString("apiId");if(id.isEmpty())id=fixture.optString("id");if(!id.isEmpty())byFixture.put(id,fixture);
+        }
+        Map<String,Match> relevant=new HashMap<>();for(Match match:candidates)relevant.put(fixtureKey(match),match);
+        Map<String,Match> updates=new HashMap<>();Map<String,Match> completed=new LinkedHashMap<>();Set<String> postponed=new HashSet<>();
+        for(Map.Entry<String,Match> entry:relevant.entrySet()){
+            String key=entry.getKey();Match old=entry.getValue();JSONObject fixture=byFixture.get(old.fixtureId);if(fixture==null)continue;
+            long kickoff;try{kickoff=parseKickoff(fixture);}catch(Exception ignored){continue;}
+            String status=fixtureStatus(fixture,kickoff,now);int[]score=LiveRefreshPolicy.completeScore(fixture);
+            if(FixtureStatusPolicy.POSTPONED.equals(status)){postponed.add(key);continue;}
+            Match refreshed=copyMatch(old,score==null?old.homeScore:score[0],score==null?old.awayScore:score[1],status);
+            if(FixtureStatusPolicy.FINISHED.equals(status)){
+                if(score!=null)completed.put(key,copyMatch(refreshed,score[0],score[1],FixtureStatusPolicy.FINISHED));
+            }else updates.put(key,refreshed);
+        }
+        List<Match> favorites=updateStored(store.apiFavoriteMatches(),updates,completed,postponed);
+        List<Match> today=updateStored(store.apiTodayMatches(),updates,completed,postponed);
+        List<Match> recent=new ArrayList<>(store.recentResults());
+        for(Map.Entry<String,Match> entry:completed.entrySet()){
+            Match result=entry.getValue();String completedKey=entry.getKey();
+            for(int i=recent.size()-1;i>=0;i--)if(completedKey.equals(fixtureKey(recent.get(i))))recent.remove(i);
+            recent.add(copyMatch(result,result.homeScore,result.awayScore,FixtureStatusPolicy.FINISHED));
+        }
+        recent=dedupeByFixture(recent);recent.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
+        store.saveLiveMatches(favorites,today,recent);
+    }
+
+    private static List<Match> updateStored(List<Match> values,Map<String,Match> updates,Map<String,Match> completed,Set<String> postponed){
+        List<Match> result=new ArrayList<>();for(Match old:values){String key=fixtureKey(old);
+            if(postponed.contains(key)||completed.containsKey(key))continue;
+            Match updated=updates.get(key);result.add(updated==null?old:copyMatch(old,updated.homeScore,updated.awayScore,updated.status));
+        }return result;
+    }
+
+    private static Match copyMatch(Match source,int home,int away,String status){
+        return new Match(source.id,source.team,source.opponent,source.competition,source.kickoff,source.manual,home,away,
+                source.fixtureId,source.homeTeam,source.awayTeam,source.homeTeamId,source.awayTeamId,source.country,status);
+    }
+
+    private static String fixtureKey(Match match){
+        if(match==null||match.fixtureId==null||match.fixtureId.isEmpty())return "";
+        return match.fixtureId;
+    }
+
+    private static List<Match> dedupeByFixture(List<Match> matches){
+        Map<String,Match> unique=new LinkedHashMap<>();for(Match match:matches){String key=fixtureKey(match);if(key.isEmpty())key=String.valueOf(match.id);unique.put(key,match);}return new ArrayList<>(unique.values());
     }
 
     private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<Match> recentResults,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
@@ -587,7 +669,7 @@ class ApiClient {
         for(int i=0;i<id.length();i++)value=31*value+id.charAt(i);return value==Long.MIN_VALUE?0:Math.abs(value);
     }
 
-    private static boolean competitionSelected(String apiName,String apiCountry,Set<String> clubCups,Set<String> nationalCups){
+    static boolean competitionSelected(String apiName,String apiCountry,Set<String> clubCups,Set<String> nationalCups){
         Set<String> all=new HashSet<>();if(clubCups!=null)all.addAll(clubCups);if(nationalCups!=null)all.addAll(nationalCups);
         String actualName=canonicalCompetition(apiName),actualCountry=canonicalCountry(apiCountry);
         for(String full:all){

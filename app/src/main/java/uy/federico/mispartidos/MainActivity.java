@@ -45,26 +45,43 @@ import java.time.temporal.ChronoUnit;
 public class MainActivity extends Activity {
     private AppStore store;
     private LinearLayout list;
+    private ScrollView mainScroll;
     private String syncStatus = "";
+    private TextView statusLabel;
     private final SimpleDateFormat dateFormat = localDateFormat("EEE d MMM · HH:mm");
     private final Handler refreshHandler=new Handler(Looper.getMainLooper());
-    private static final long LIVE_REFRESH_INTERVAL_MS=5L*60L*1000L;
     private long lastLiveRefreshAt=0L;
     private boolean syncInProgress=false;
-    private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();maybeRefreshLiveMatches();refreshHandler.postDelayed(this,60_000L);}};
+    private boolean foreground=false;
+    private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();refreshHandler.postDelayed(this,60_000L);}};
+    private final Runnable liveRefreshCheck=new Runnable(){@Override public void run(){maybeRefreshLiveMatches();scheduleLiveRefreshCheck();}};
     private void maybeRefreshLiveMatches(){
-        if(syncInProgress||!ApiClient.configured(this))return;
-        boolean live=false;
-        for(Match m:store.upcoming())if(AppStore.isInProgress(m)){live=true;break;}
-        if(!live)for(Match m:store.todayByCompetitions())if(AppStore.isInProgress(m)){live=true;break;}
         long now=System.currentTimeMillis();
-        if(!live||now-lastLiveRefreshAt<LIVE_REFRESH_INTERVAL_MS)return;
+        boolean live=LiveRefreshPolicy.containsLive(store.upcoming(),now)||LiveRefreshPolicy.containsLive(store.todayByCompetitions(),now);
+        if(!LiveRefreshPolicy.shouldStart(now,lastLiveRefreshAt,foreground,live,syncInProgress,ApiClient.configured(this)))return;
         lastLiveRefreshAt=now;
-        syncNow(true,false);
+        store.saveLiveRefreshStarted(now);syncInProgress=true;syncStatus="Actualizando resultados en vivo…";updateStatusLabel();
+        ApiClient.refreshLive(this,(ok,message)->{
+            syncInProgress=false;lastLiveRefreshAt=store.lastLiveRefreshStarted();
+            syncStatus=ok?"":"Falló la última actualización automática de resultados";
+            if(ok){refresh();MatchWidgetProvider.updateAll(this);}
+            updateStatusLabel();
+            if(foreground){maybeRefreshLiveMatches();scheduleLiveRefreshCheck();}
+        });
+    }
+
+    private void scheduleLiveRefreshCheck(){
+        refreshHandler.removeCallbacks(liveRefreshCheck);if(!foreground)return;
+        long now=System.currentTimeMillis();
+        boolean live=LiveRefreshPolicy.containsLive(store.upcoming(),now)||LiveRefreshPolicy.containsLive(store.todayByCompetitions(),now);
+        long delay=live?Math.max(0L,lastLiveRefreshAt+LiveRefreshPolicy.INTERVAL_MS-now):60_000L;
+        if(syncInProgress&&delay==0L)delay=60_000L;
+        refreshHandler.postDelayed(liveRefreshCheck,delay);
     }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
+        lastLiveRefreshAt=store.lastLiveRefreshStarted();
         BackgroundSyncScheduler.schedule(this);DailySummaryScheduler.schedule(this);
         buildScreen(); requestNotificationPermission(); AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);showOpenedMatch(getIntent());
         boolean firstOpenToday=store.needsDailyOpenSync();
@@ -73,8 +90,8 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
-    @Override protected void onResume(){super.onResume();refreshHandler.removeCallbacks(timeRefresh);refreshHandler.postDelayed(timeRefresh,60_000L);maybeRefreshLiveMatches();}
-    @Override protected void onPause(){refreshHandler.removeCallbacks(timeRefresh);super.onPause();}
+    @Override protected void onResume(){super.onResume();foreground=true;refreshHandler.removeCallbacks(timeRefresh);refreshHandler.postDelayed(timeRefresh,60_000L);maybeRefreshLiveMatches();scheduleLiveRefreshCheck();}
+    @Override protected void onPause(){foreground=false;refreshHandler.removeCallbacks(timeRefresh);refreshHandler.removeCallbacks(liveRefreshCheck);super.onPause();}
 
     private void buildScreen() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(248,250,252));
@@ -84,17 +101,23 @@ public class MainActivity extends Activity {
         Button teams = button("⭐ Equipos y torneos"); teams.setOnClickListener(v -> openConfiguration());
         Button news = button("Noticias"); news.setContentDescription("Noticias de mis equipos");news.setOnClickListener(v -> startActivity(new Intent(this,NewsActivity.class)));
         Button settings = button("⚙"); settings.setContentDescription("Ajustes");settings.setOnClickListener(v -> showSettings());
-        Button update = button("↻"); update.setContentDescription("Actualizar partidos");update.setEnabled(!syncStatus.startsWith("Actualizando"));update.setOnClickListener(v -> syncNow(true));
+        Button update = button("↻"); update.setContentDescription("Actualizar partidos");update.setOnClickListener(v -> syncNow(true));
         actions.addView(teams,new LinearLayout.LayoutParams(0,-2,1));actions.addView(news,new LinearLayout.LayoutParams(dp(92),-2));actions.addView(settings,new LinearLayout.LayoutParams(dp(56),-2));actions.addView(update,new LinearLayout.LayoutParams(dp(56),-2));root.addView(actions);
-        String connection=ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():syncStatus):"Conexión no configurada";
-        TextView info = text(summaryText()+"\n⚽ Datos GOAL API · "+connection, 13, Color.DKGRAY, false);
+        String connection=ApiClient.configured(this)?lastSyncText():"Conexión no configurada";
+        statusLabel = text(statusText(connection), 13, Color.DKGRAY, false);
+        TextView info = statusLabel;
         info.setPadding(dp(16),dp(6),dp(16),dp(10)); root.addView(info);
         if(syncStatus.startsWith("Actualizando")){ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));}
-        ScrollView scroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(84)); scroll.addView(list); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
+        mainScroll = new ScrollView(this); list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); list.setPadding(dp(12),0,dp(12),dp(84)); mainScroll.addView(list); root.addView(mainScroll, new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root); refresh();
     }
 
+    private String statusText(String connection){return summaryText()+"\n⚽ Datos GOAL API · "+connection+"\n"+lastLiveRefreshText()+(syncStatus.isEmpty()?"":"\n"+syncStatus);}
+    private String lastLiveRefreshText(){long value=store==null?0:store.lastLiveRefresh();return value==0?"Resultados en vivo: sin actualización todavía":"Última actualización de resultados: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
+    private void updateStatusLabel(){if(statusLabel!=null)statusLabel.setText(statusText(ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():"Conexión GOAL API lista"):"Conexión no configurada"));}
+
     private void refresh() {
+        int previousScroll=mainScroll==null?0:mainScroll.getScrollY();
         list.removeAllViews();List<Match>playing=new ArrayList<>(),future=new ArrayList<>();for(Match m:store.upcoming())if(AppStore.isInProgress(m))playing.add(m);else future.add(m);
         if(!playing.isEmpty()){addSectionTitle("🔴 Jugando ahora");for(Match m:playing)list.addView(matchCard(m));}
         addSectionTitle("Próximos de mis equipos");
@@ -112,7 +135,8 @@ public class MainActivity extends Activity {
         if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
-        List<Match>results=store.recentResults();addSectionTitle("Resultados recientes · mis equipos");if(results.isEmpty()){TextView empty=text("No hay resultados recientes de tus equipos.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
+        List<Match>results=store.recentResults();addSectionTitle("Resultados recientes");if(results.isEmpty()){TextView empty=text("No hay resultados recientes.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
+        if(mainScroll!=null)mainScroll.post(()->mainScroll.scrollTo(0,previousScroll));
     }
 
     private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";for(Match m:matches){String day=matchDayLabel(m.kickoff);if(!day.equals(lastDay)){TextView date=text(day,13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
@@ -151,7 +175,7 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
         table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
         SimpleDateFormat hourFormat=localDateFormat("HH:mm");
-        for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false);row.setOnClickListener(v->showInfoOrGoogle(m));row.setContentDescription("Opciones para "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
+        for(int i=0;i<matches.size();i++){Match m=matches.get(i);String match=AppStore.isInProgress(m)&&m.hasScore()?m.local()+"  "+m.homeScore+" - "+m.awayScore+"  "+m.visitante():m.team+" vs. "+m.opponent;View row=todayRow(hourFormat.format(new Date(m.kickoff)),match,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false);row.setOnClickListener(v->showInfoOrGoogle(m));row.setContentDescription("Opciones para "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
@@ -182,7 +206,9 @@ public class MainActivity extends Activity {
         TextView date = text(matchDateLabel(m.kickoff),19,Color.rgb(180,120,0),true);
         TextView comp = text(m.competition + (m.manual ? " · manual" : ""),13,Color.GRAY,false);
         TextView countdown=text(matchTiming(m),13,AppStore.isInProgress(m)?Color.rgb(190,24,24):Color.rgb(37,99,235),true);
-        content.addView(team); if(!m.opponent.isEmpty()&&!bothFavorites)content.addView(versus); content.addView(date);content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
+        content.addView(team); if(!m.opponent.isEmpty()&&!bothFavorites)content.addView(versus); content.addView(date);
+        if(AppStore.isInProgress(m)&&m.hasScore())content.addView(text(m.local()+"  "+m.homeScore+" - "+m.awayScore+"  "+m.visitante(),17,Color.rgb(185,28,28),true));
+        content.addView(countdown);content.addView(comp);card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(46)));card.addView(content,new LinearLayout.LayoutParams(0,-2,1));card.setOnClickListener(v->showMatchActions(m));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); card.setLayoutParams(lp); return card;
     }
 
@@ -484,7 +510,7 @@ public class MainActivity extends Activity {
     private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
     private void syncNow(boolean force){syncNow(force,false);}
     private void syncNow(boolean force,boolean dailyOpen){if(syncInProgress)return;if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";syncInProgress=true;buildScreen();ApiClient.sync(this,force,(ok,message)->{syncInProgress=false;syncStatus=message;if(ok){if(dailyOpen){store.markDailyOpenSync();BackgroundSyncScheduler.markCompleted(this);}AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}
-        buildScreen();if(force&&!dailyOpen)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
+        buildScreen();if(force&&!dailyOpen)Toast.makeText(this,message,Toast.LENGTH_LONG).show();if(foreground){maybeRefreshLiveMatches();scheduleLiveRefreshCheck();}});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
     private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
     private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";LocalDate today=MontevideoTime.date(System.currentTimeMillis()),match=MontevideoTime.date(m.kickoff);long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}

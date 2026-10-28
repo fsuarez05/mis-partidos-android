@@ -6,7 +6,12 @@ const fakeCache = new Map();
 const context = {
   console,
   Logger: { log() {} },
-  Utilities: { formatDate() { return '2026-10-23 12:00:00'; } },
+  Utilities: {
+    DigestAlgorithm:{SHA_256:'sha256'},
+    formatDate() { return '2026-10-23 12:00:00'; },
+    computeDigest(algorithm,value) { return Array.from(require('crypto').createHash(algorithm).update(value).digest()); },
+    base64EncodeWebSafe(bytes) { return Buffer.from(bytes).toString('base64').replace(/\+/g,'-').replace(/\//g,'_'); }
+  },
   PropertiesService: { getScriptProperties() { return { getProperty() { return null; }, setProperty() {}, deleteProperty() {} }; } },
   CacheService: { getScriptCache() { return { get(key) { return fakeCache.get(key) || null; }, put(key,value) { fakeCache.set(key,value); } }; } },
   UrlFetchApp: { fetchAll() { throw new Error('fetchAll no fue configurado en la prueba'); } },
@@ -131,4 +136,27 @@ assert.equal(route.ok,true);
 assert.equal(routedArgs[1],true);
 assert.equal(routedArgs[2],false);
 
-console.log('OK: 14 escenarios simulados (emisión, caché, actualización, límites y ruta HTTP)');
+// Live polling uses an isolated four-minute shared cache; normal sync keeps
+// its existing 15-minute cache.
+context.PropertiesService = { getScriptProperties() { return { getProperty(name) { return name === 'GOAL_API_KEY' ? 'mock-goal-key' : 'mock-access-token'; } }; } };
+let goalCalls = 0;
+const goalCacheTtls = [];
+const originalFetchApi = context.fetchApi_;
+context.fetchApi_ = (path,query,ttl,liveRefresh) => { goalCacheTtls.push({ttl,liveRefresh}); return originalFetchApi(path,query,ttl,liveRefresh); };
+context.UrlFetchApp.fetch = () => {
+  goalCalls++;
+  return {getResponseCode(){return 200;},getContentText(){return JSON.stringify({success:true,data:[],pagination:{hasMore:false}});}};
+};
+const goalRoute = params => context.doGet({parameter:Object.assign({action:'fixturesByDate',date:'2026-10-28',limit:'500',token:'mock-access-token'},params)});
+const normalResponse = goalRoute({});
+assert.equal(normalResponse.ok,true,JSON.stringify(normalResponse));
+goalRoute({});
+assert.equal(goalCalls,1,'las lecturas normales deben reutilizar caché');
+assert.equal(goalCacheTtls[0].ttl,900,'la sincronización normal conserva la caché existente');
+goalRoute({liveRefresh:'true'});
+goalRoute({liveRefresh:'true'});
+assert.equal(goalCalls,2,'los sondeos comparten su propia respuesta GOAL');
+assert.equal(goalCacheTtls[2].ttl,240,'la caché del sondeo es inferior al intervalo de cinco minutos');
+assert.equal(goalCacheTtls[2].liveRefresh,true);
+
+console.log('OK: 15 escenarios simulados (emisión, caché, actualización, límites, rutas HTTP y cadencia GOAL)');
