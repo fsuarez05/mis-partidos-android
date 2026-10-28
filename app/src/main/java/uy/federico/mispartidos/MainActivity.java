@@ -48,7 +48,20 @@ public class MainActivity extends Activity {
     private String syncStatus = "";
     private final SimpleDateFormat dateFormat = localDateFormat("EEE d MMM · HH:mm");
     private final Handler refreshHandler=new Handler(Looper.getMainLooper());
-    private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();refreshHandler.postDelayed(this,60_000L);}};
+    private static final long LIVE_REFRESH_INTERVAL_MS=5L*60L*1000L;
+    private long lastLiveRefreshAt=0L;
+    private boolean syncInProgress=false;
+    private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();maybeRefreshLiveMatches();refreshHandler.postDelayed(this,60_000L);}};
+    private void maybeRefreshLiveMatches(){
+        if(syncInProgress||!ApiClient.configured(this))return;
+        boolean live=false;
+        for(Match m:store.upcoming())if(AppStore.isInProgress(m)){live=true;break;}
+        if(!live)for(Match m:store.todayByCompetitions())if(AppStore.isInProgress(m)){live=true;break;}
+        long now=System.currentTimeMillis();
+        if(!live||now-lastLiveRefreshAt<LIVE_REFRESH_INTERVAL_MS)return;
+        lastLiveRefreshAt=now;
+        syncNow(true,false);
+    }
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state); store = new AppStore(this);
@@ -60,7 +73,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);showOpenedMatch(intent);}
-    @Override protected void onResume(){super.onResume();refreshHandler.removeCallbacks(timeRefresh);refreshHandler.postDelayed(timeRefresh,60_000L);}
+    @Override protected void onResume(){super.onResume();refreshHandler.removeCallbacks(timeRefresh);refreshHandler.postDelayed(timeRefresh,60_000L);maybeRefreshLiveMatches();}
     @Override protected void onPause(){refreshHandler.removeCallbacks(timeRefresh);super.onPause();}
 
     private void buildScreen() {
@@ -470,7 +483,7 @@ public class MainActivity extends Activity {
     private void requestNotificationPermission() { if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},7); }
     private void showApiConnection(){LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),0,dp(20),0);EditText url=new EditText(this);url.setHint("URL de Apps Script terminada en /exec");url.setText(store.proxyUrl());EditText token=new EditText(this);token.setHint("ACCESS_TOKEN");token.setText(store.proxyToken());form.addView(url);form.addView(token);new AlertDialog.Builder(this).setTitle("Conexión API").setView(form).setPositiveButton("Guardar y probar",(d,w)->{String u=url.getText().toString().trim(),t=token.getText().toString().trim();if(!u.startsWith("https://")||!u.endsWith("/exec")||t.isEmpty()){Toast.makeText(this,"Revisá la URL y el token",Toast.LENGTH_LONG).show();return;}store.saveProxy(u,t);syncNow(true);}).setNegativeButton("Cancelar",null).show();}
     private void syncNow(boolean force){syncNow(force,false);}
-    private void syncNow(boolean force,boolean dailyOpen){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){if(dailyOpen){store.markDailyOpenSync();BackgroundSyncScheduler.markCompleted(this);}AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}
+    private void syncNow(boolean force,boolean dailyOpen){if(syncInProgress)return;if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";syncInProgress=true;buildScreen();ApiClient.sync(this,force,(ok,message)->{syncInProgress=false;syncStatus=message;if(ok){if(dailyOpen){store.markDailyOpenSync();BackgroundSyncScheduler.markCompleted(this);}AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}
         buildScreen();if(force&&!dailyOpen)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
     private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
     private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
