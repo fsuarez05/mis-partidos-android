@@ -21,7 +21,7 @@ final class FixtureStatusPolicy {
                 || status.contains("after penalties") || status.contains("after extra time")
                 || status.contains("ended") || status.equals("final")) return FINISHED;
         if (status.contains("live") || status.contains("playing") || status.contains("in progress")
-                || status.contains("half time") || status.contains("halftime")
+                || status.contains("half time") || status.contains("halftime") || status.contains("second half")
                 || status.contains("1st half") || status.contains("2nd half") || status.equals("ht")) return LIVE;
         return now >= kickoff + normalDurationMs ? FINISHED : LIVE;
     }

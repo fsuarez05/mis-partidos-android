@@ -53,7 +53,8 @@ final class TeamIdentity {
 
     private static Map<String,String> aliases() {
         Map<String,String> a = new HashMap<>();
-        alias(a, "atletico de madrid", "atletico madrid", "atletico madrid fc", "atletico", "atleti", "atl madrid", "atletico mad");
+        alias(a, "atletico madrid", "atletico de madrid", "atletico madrid fc", "atletico", "atleti", "atl madrid", "atletico mad");
+        alias(a, "deportivo la coruna", "deportivo de la coruna", "deportivo la coruña", "depor", "real deportivo de la coruna");
         alias(a, "paris saint germain", "paris sg", "psg");
         alias(a, "internazionale", "inter milan", "inter");
         alias(a, "bayern munich", "bayern munchen", "bayern munich", "fc bayern");
