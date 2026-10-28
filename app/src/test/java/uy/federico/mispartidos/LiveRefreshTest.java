@@ -37,6 +37,12 @@ public class LiveRefreshTest {
         assertArrayEquals(new int[]{2,1},LiveRefreshPolicy.completeScore(response));
     }
 
+    @Test public void finishedFixtureWithMissingScoreDoesNotInventOne()throws Exception{
+        JSONObject response=fixture("Full Time",NOW-DURATION-60_000,null);
+        assertEquals(FixtureStatusPolicy.FINISHED,FixtureStatusPolicy.classify(response.optString("status"),NOW-DURATION-60_000,NOW,DURATION));
+        assertNull(LiveRefreshPolicy.completeScore(response));
+    }
+
     @Test public void postponedAndSuspendedFixturesAreNotLiveOrFinal(){
         assertEquals(FixtureStatusPolicy.POSTPONED,FixtureStatusPolicy.classify("Postponed",NOW-1,NOW,DURATION));
         assertEquals(FixtureStatusPolicy.POSTPONED,FixtureStatusPolicy.classify("Suspended",NOW-1,NOW,DURATION));

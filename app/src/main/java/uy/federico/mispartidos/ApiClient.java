@@ -117,8 +117,9 @@ class ApiClient {
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
                 // Conservar resultados recientes válidos si la consulta diaria vino incompleta.
                 long recentCutoff=System.currentTimeMillis()-48L*60L*60L*1000L;
-                for(Match old:store.recentResults())if(old.kickoff>=recentCutoff&&old.kickoff<=System.currentTimeMillis()&&old.homeScore>=0&&old.awayScore>=0)recentResults.add(old);
-                List<Match> uniqueRecentResults=dedupeMatches(recentResults);uniqueRecentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
+                for(Match old:store.recentResults())if(old.kickoff>=recentCutoff&&old.kickoff<=System.currentTimeMillis()
+                        &&(old.homeScore>=0&&old.awayScore>=0||FixtureStatusPolicy.FINISHED.equals(old.status)))recentResults.add(old);
+                List<Match> uniqueRecentResults=dedupeByFixture(recentResults);uniqueRecentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
                 store.saveApiMatches(favoriteList,today,uniqueRecentResults);
                 if(failures.isEmpty())store.saveSyncPendingDetails("");
                 else{
@@ -182,7 +183,7 @@ class ApiClient {
             if(FixtureStatusPolicy.POSTPONED.equals(status)){postponed.add(key);continue;}
             Match refreshed=copyMatch(old,score==null?old.homeScore:score[0],score==null?old.awayScore:score[1],status);
             if(FixtureStatusPolicy.FINISHED.equals(status)){
-                if(score!=null)completed.put(key,copyMatch(refreshed,score[0],score[1],FixtureStatusPolicy.FINISHED));
+                completed.put(key,copyMatch(refreshed,score==null?-1:score[0],score==null?-1:score[1],FixtureStatusPolicy.FINISHED));
             }else updates.put(key,refreshed);
         }
         List<Match> favorites=updateStored(store.apiFavoriteMatches(),updates,completed,postponed);
@@ -215,7 +216,7 @@ class ApiClient {
     }
 
     private static List<Match> dedupeByFixture(List<Match> matches){
-        Map<String,Match> unique=new LinkedHashMap<>();for(Match match:matches){String key=fixtureKey(match);if(key.isEmpty())key=String.valueOf(match.id);unique.put(key,match);}return new ArrayList<>(unique.values());
+        Map<String,Match> unique=new LinkedHashMap<>();for(Match match:matches){String key=fixtureKey(match);if(key.isEmpty())key=String.valueOf(match.id);Match old=unique.get(key);if(old==null||(!old.hasScore()&&match.hasScore()))unique.put(key,match);}return new ArrayList<>(unique.values());
     }
 
     private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<Match> recentResults,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){
@@ -560,8 +561,6 @@ class ApiClient {
     }
 
     private static int nullableInt(JSONObject value,String key){if(!value.has(key)||value.isNull(key))return-1;Object raw=value.opt(key);if(raw instanceof Number)return((Number)raw).intValue();try{return Integer.parseInt(String.valueOf(raw));}catch(Exception ignored){return-1;}}
-
-    private static List<Match> dedupeMatches(List<Match> values){Map<Long,Match> unique=new LinkedHashMap<>();for(Match m:values)unique.put(m.id,m);return new ArrayList<>(unique.values());}
 
     private static List<Match> parseDayFixtures(JSONObject wrapper,Set<String> clubCups,Set<String> nationalCups,boolean filterCompetitions)throws Exception{
         JSONArray data=apiData(wrapper);List<Match> result=new ArrayList<>();long cutoff=System.currentTimeMillis()-7_200_000L;
