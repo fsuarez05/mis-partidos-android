@@ -10,7 +10,8 @@ class MatchSummary {
     static class Absence {String team="",player="",reason="";}
     static class Source {String title="",url="",date="",type="";}
     boolean found,fromCache,fallback,broadcastConfirmed;
-    String context="",updated="",fallbackReason="",broadcastCountry="",broadcastText="";
+    String context="",updated="",fallbackReason="",broadcastCountry="",broadcastText="",updateStatus="",updateReason="",broadcastReason="";
+    boolean broadcastPreserved;
     final TeamInfo home=new TeamInfo(),away=new TeamInfo();
     final List<String> news=new ArrayList<>();
     final List<Absence> absences=new ArrayList<>();
@@ -20,8 +21,11 @@ class MatchSummary {
     static MatchSummary fromJson(JSONObject j){
         MatchSummary r=new MatchSummary();r.rawJson=j.toString();r.found=j.optBoolean("encontrado",true);r.context=j.optString("contexto");
         r.updated=j.optString("actualizado");r.fromCache=j.optBoolean("desdeCache");r.fallback=j.optBoolean("respaldoPorError");r.fallbackReason=j.optString("motivoRespaldo");
+        r.updateStatus=j.optString("estadoActualizacion");r.updateReason=j.optString("motivoActualizacion");
         TransmissionInfo transmission=TransmissionInfo.fromJson(j.optJSONObject("transmision"));
         r.broadcastConfirmed=transmission.confirmed;r.broadcastCountry=transmission.country;r.broadcastText=transmission.text;
+        JSONObject transmissionJson=j.optJSONObject("transmision");
+        if(transmissionJson!=null){r.broadcastPreserved=transmissionJson.optBoolean("conservadaDeConsultaAnterior",false);r.broadcastReason=transmissionJson.optString("motivoConservacion","");}
         readTeam(j.optJSONObject("local"),r.home);readTeam(j.optJSONObject("visitante"),r.away);
         JSONArray n=j.optJSONArray("novedades");if(n!=null)for(int i=0;i<n.length();i++){String value=sanitizeTemporalClaims(n.optString(i));if(!value.isEmpty())r.news.add(value);}
         JSONArray b=j.optJSONArray("bajas");if(b!=null)for(int i=0;i<b.length();i++){JSONObject x=b.optJSONObject(i);if(x==null)continue;Absence a=new Absence();a.team=ApiClient.displayTeamName(x.optString("equipo"));a.player=x.optString("jugador");a.reason=x.optString("motivo");r.absences.add(a);}
@@ -33,10 +37,11 @@ class MatchSummary {
     void preserveConfirmedBroadcastFrom(MatchSummary previous){
         if(previous==null||!previous.broadcastConfirmed||broadcastConfirmed)return;
         broadcastConfirmed=true;broadcastCountry=previous.broadcastCountry;broadcastText=previous.broadcastText;
+        broadcastPreserved=true;broadcastReason="La actualización no encontró una confirmación nueva; se conserva la transmisión confirmada anteriormente.";
         try{
             JSONObject current=new JSONObject(rawJson),old=new JSONObject(previous.rawJson);
             JSONObject transmission=old.optJSONObject("transmision");
-            if(transmission!=null){current.put("transmision",transmission);rawJson=current.toString();}
+            if(transmission!=null){transmission.put("conservadaDeConsultaAnterior",true);transmission.put("motivoConservacion",broadcastReason);current.put("transmision",transmission);rawJson=current.toString();}
         }catch(Exception ignored){}
     }
     private static void readTeam(JSONObject j,TeamInfo out){if(j==null)return;out.name=ApiClient.displayTeamName(j.optString("nombre"));out.form=sanitizeTemporalClaims(j.optString("comoLlega"));out.quality=j.optString("calidadInformacion");}

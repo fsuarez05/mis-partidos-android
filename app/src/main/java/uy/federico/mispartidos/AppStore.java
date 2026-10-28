@@ -155,7 +155,8 @@ public class AppStore {
     void saveProxy(String url,String token){prefs.edit().putString("proxy_url",url.trim()).putString("proxy_token",token.trim()).putLong("api_last_sync",0).apply();}
     MatchSummary cachedMatchSummary(String fixtureId){if(fixtureId==null||fixtureId.isEmpty())return null;try{String value=prefs.getString("match_summary_"+fixtureId,"");return value.isEmpty()?null:MatchSummary.fromJson(new JSONObject(value));}catch(Exception ignored){return null;}}
     long cachedMatchSummaryTime(String fixtureId){if(fixtureId==null||fixtureId.isEmpty())return 0L;return prefs.getLong("match_summary_time_"+fixtureId,0L);}
-    void saveMatchSummary(String fixtureId,MatchSummary summary){if(fixtureId==null||fixtureId.isEmpty()||summary==null||summary.rawJson.isEmpty())return;prefs.edit().putString("match_summary_"+fixtureId,summary.rawJson).putLong("match_summary_time_"+fixtureId,System.currentTimeMillis()).apply();}
+    void saveMatchSummary(String fixtureId,MatchSummary summary){saveMatchSummary(fixtureId,summary,System.currentTimeMillis());}
+    void saveMatchSummary(String fixtureId,MatchSummary summary,long savedAt){if(fixtureId==null||fixtureId.isEmpty()||summary==null||summary.rawJson.isEmpty())return;prefs.edit().putString("match_summary_"+fixtureId,summary.rawJson).putLong("match_summary_time_"+fixtureId,savedAt>0?savedAt:System.currentTimeMillis()).apply();}
     String apiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));return ids.has(name)?ids.getString(name):null;}catch(Exception ignored){return null;}}
     void saveApiTeamId(String name,String id){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.put(name,id);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
     void clearApiTeamId(String name){try{JSONObject ids=new JSONObject(prefs.getString("goal_team_ids","{}"));ids.remove(name);prefs.edit().putString("goal_team_ids",ids.toString()).apply();}catch(Exception ignored){}}
@@ -166,18 +167,33 @@ public class AppStore {
     Set<String> dynamicSuggestedClubCompetitions(Set<String>teams){Set<String>result=new LinkedHashSet<>();try{JSONObject map=new JSONObject(prefs.getString("dynamic_team_competitions","{}"));for(String team:teams){JSONArray values=map.optJSONArray(team);if(values!=null)for(int i=0;i<values.length();i++)result.add(values.optString(i));}}catch(Exception ignored){}return result;}
     String[] allClubCompetitions(){Set<String>all=new LinkedHashSet<>(java.util.Arrays.asList(CLUB_COMPETITIONS));all.addAll(prefs.getStringSet("dynamic_competitions",new HashSet<>()));return all.toArray(new String[0]);}
 
-    private static String favoriteTeamKey(String name){
-        if(name==null)return "";
-        String key=java.text.Normalizer.normalize(name.toLowerCase(java.util.Locale.ROOT),java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{M}","").replaceAll("[^a-z0-9]","");
-        if(key.equals("atleticomadrid")||key.equals("atleticodemadrid")||key.equals("atleticomadridfc"))return "atleticomadrid";
-        return key;
+    private Map<String,String> selectedFavoriteIds(){
+        Map<String,String> ids=new java.util.HashMap<>();
+        for(String team:selectedTeams()){String id=apiTeamId("goal:C:"+team);if(id!=null&&!id.isEmpty())ids.put(team,id);}
+        for(String team:selectedNationalTeams()){String id=apiTeamId("goal:N:"+team);if(id!=null&&!id.isEmpty())ids.put(team,id);}
+        return ids;
     }
-    private static boolean matchesFavorite(Match match,Set<String> favorites){
-        String home=favoriteTeamKey(match.local()),away=favoriteTeamKey(match.visitante());
+    boolean isSelectedFavorite(Match match){
+        Set<String> national=selectedNationalTeams();Set<String> favorites=new HashSet<>(selectedTeams());favorites.addAll(national);
+        return isSelectedFavorite(match,favorites,national,selectedFavoriteIds());
+    }
+    private boolean isSelectedFavorite(Match match,Set<String> favorites,Set<String> national,Map<String,String> ids){
         for(String favorite:favorites){
-            String key=favoriteTeamKey(favorite);
-            if(!key.isEmpty()&&(key.equals(home)||key.equals(away)))return true;
+            String id=ids.get(favorite);
+            if(id!=null&&!id.isEmpty()){
+                if(id.equals(match.homeTeamId)||id.equals(match.awayTeamId))return true;
+                if(!match.homeTeamId.isEmpty()&&!match.awayTeamId.isEmpty())continue;
+            }
+            if(!TeamIdentity.sameName(favorite,match.local())&&!TeamIdentity.sameName(favorite,match.visitante()))continue;
+            if(national.contains(favorite)){
+                String country=match.country.toLowerCase(java.util.Locale.ROOT),competition=match.competition.toLowerCase(java.util.Locale.ROOT);
+                if(country.contains("intl")||country.contains("international")||country.contains("world")||country.contains("europe")||country.contains("south america")
+                        ||competition.contains("fifa")||competition.contains("uefa")||competition.contains("conmebol")||competition.contains("afc")||competition.contains("caf")||competition.contains("concacaf")||competition.contains("ofc")
+                        ||competition.contains("world cup")||competition.contains("world qualifier")||competition.contains("copa america")||competition.contains("asian cup")||competition.contains("africa cup")||competition.contains("gold cup")
+                        ||competition.contains("eliminatoria")||competition.contains("friendl")||competition.contains("amistoso"))return true;
+            }else{
+                String expected=countryForClub(favorite);if(expected==null||TeamIdentity.sameName(expected,match.country))return true;
+            }
         }
         return false;
     }
@@ -187,16 +203,16 @@ public class AppStore {
         return matches;
     }
     List<Match>upcoming(){
-        long now=System.currentTimeMillis(),horizon=now+UPCOMING_HORIZON_MS;Set<String>favorites=new HashSet<>(selectedTeams());favorites.addAll(selectedNationalTeams());List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m))r.add(m);
+        long now=System.currentTimeMillis(),horizon=now+UPCOMING_HORIZON_MS;List<Match>r=new ArrayList<>();for(Match m:manualMatches())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m))r.add(m);
+        Set<String> national=selectedNationalTeams();Set<String> favorites=new HashSet<>(selectedTeams());favorites.addAll(national);Map<String,String> ids=selectedFavoriteIds();
         java.util.LinkedHashMap<String,Match>unique=new java.util.LinkedHashMap<>();
-        for(Match m:allFavoriteCandidates())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m)&&matchesFavorite(m,favorites)){
-            String a=m.team.toLowerCase(java.util.Locale.ROOT),b=m.opponent.toLowerCase(java.util.Locale.ROOT);String pair=a.compareTo(b)<=0?a+"|"+b:b+"|"+a;
+        for(Match m:allFavoriteCandidates())if(m.kickoff+MATCH_DURATION_MS>now&&m.kickoff<=horizon&&isSeniorMatch(m)&&isSelectedFavorite(m,favorites,national,ids)){
             // El mismo fixture puede llegar una vez por cada favorito. El ID
             // real es estable incluso si GOAL devuelve un nombre traducido en
             // una tarjeta y en inglés en la otra.
-            String key=m.fixtureId.isEmpty()?(m.kickoff/60_000L)+"|"+pair:"fixture|"+m.fixtureId;
+            String key=TeamIdentity.fixtureKey(m.fixtureId,m.kickoff,m.local(),m.visitante());
             Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.local(),old.visitante(),old.competition,old.kickoff,false,-1,-1,
-                    old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country));
+                    old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country,old.status));
         }
         r.addAll(unique.values());
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;
@@ -210,9 +226,10 @@ public class AppStore {
     }
 
     List<Match>todayByCompetitions(){
-        long now=System.currentTimeMillis();List<Match>result=new ArrayList<>();for(Match m:apiTodayMatches())if(m.kickoff+MATCH_DURATION_MS>now)result.add(m);return result;
+        long now=System.currentTimeMillis();Set<String> national=selectedNationalTeams();Set<String> favorites=new HashSet<>(selectedTeams());favorites.addAll(national);Map<String,String> ids=selectedFavoriteIds();
+        List<Match>result=new ArrayList<>();for(Match m:apiTodayMatches())if(m.kickoff+MATCH_DURATION_MS>now&&!isSelectedFavorite(m,favorites,national,ids))result.add(m);return result;
     }
-    static boolean isInProgress(Match match){long now=System.currentTimeMillis();return match.kickoff<=now&&match.kickoff+MATCH_DURATION_MS>now;}
+    static boolean isInProgress(Match match){return FixtureStatusPolicy.isInProgress(match.status,match.kickoff,System.currentTimeMillis(),MATCH_DURATION_MS);}
     private static List<Match>seniorMatches(List<Match>values){List<Match>result=new ArrayList<>();for(Match m:values)if(isSeniorMatch(m))result.add(m);return result;}
     private static boolean isSeniorMatch(Match m){
         String value=(m.team+" "+m.opponent+" "+m.competition).toLowerCase(java.util.Locale.ROOT);

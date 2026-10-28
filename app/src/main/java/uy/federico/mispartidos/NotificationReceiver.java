@@ -38,7 +38,9 @@ public class NotificationReceiver extends BroadcastReceiver {
                 .putExtra("opponent", opponent).putExtra("kickoff", kickoff)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent content = PendingIntent.getActivity(context, (int)(kickoff % Integer.MAX_VALUE), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String when = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(kickoff));
+        SimpleDateFormat time = new SimpleDateFormat("HH:mm", new Locale("es","UY"));
+        time.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));
+        String when = time.format(new Date(kickoff));
         boolean insideWindow = intent.getBooleanExtra("inside_window", false);
         long remaining = Math.max(1, (kickoff-System.currentTimeMillis()+59_999)/60_000);
         boolean sharedMatch=opponent==null||opponent.isEmpty();

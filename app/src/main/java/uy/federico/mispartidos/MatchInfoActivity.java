@@ -45,16 +45,15 @@ public class MatchInfoActivity extends Activity {
         setContentView(root);
     }
 
-    private void load(boolean force){load(force,false);}
-    private void load(boolean force,boolean allowOverLimit){
+    private void load(boolean force){
         if(finished){if(lastSummary!=null)render(lastSummary);else renderFinishedWithoutSummary();return;}
         if(loading)return;
         loading=true;refresh.setEnabled(false);progress.setVisibility(View.VISIBLE);
-        if(force||lastSummary==null)showLoading(force);
-        ApiClient.matchSummary(this,match,force,allowOverLimit,(summary,error)->{
+        if(lastSummary==null)showLoading(force);
+        ApiClient.matchSummary(this,match,force,(summary,error)->{
             loading=false;refresh.setEnabled(true);progress.setVisibility(View.GONE);
             if("TAVILY_MONTHLY_LIMIT".equals(error)){
-                if(lastSummary!=null)render(lastSummary);
+                if(lastSummary!=null){render(lastSummary);addNotice("No se pudo actualizar: se alcanzó la cuota mensual de Tavily. Se conserva la información anterior.");}
                 else renderError("Se agotó la cuota mensual estimada de Tavily.");
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("Cuota mensual de Tavily agotada")
@@ -64,7 +63,7 @@ public class MatchInfoActivity extends Activity {
                 return;
             }
             if(error!=null&&error.startsWith("TAVILY_DAILY_LIMIT")){
-                if(lastSummary!=null)render(lastSummary);
+                if(lastSummary!=null){render(lastSummary);addNotice("No se pudo actualizar: se alcanzó el límite diario de Tavily. Se conserva la información anterior.");}
                 else renderError("Se alcanzó el presupuesto diario de Tavily.");
                 String aviso="Se alcanzó el presupuesto de búsquedas disponible para hoy.";
                 String[] datos=error.split("\\|");
@@ -75,17 +74,15 @@ public class MatchInfoActivity extends Activity {
                             aviso+="\n\nConsumo estimado del mes: "+usados+" de "+total+" créditos. Disponibles según el presupuesto de hoy: "+disponibles+".";
                     }catch(NumberFormatException ignored){}
                 }
-                aviso+="\n\n¿Querés realizar esta consulta igualmente? Consumirá créditos de la cuota mensual.";
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("Límite diario de Tavily")
                     .setMessage(aviso)
-                    .setNegativeButton("Cancelar",(dialog,which)->{})
-                    .setPositiveButton("Consultar igualmente",(dialog,which)->load(force,true))
+                    .setPositiveButton("Entendido",(dialog,which)->{})
                     .show();
                 return;
             }
             if(summary!=null){lastSummary=summary;render(lastSummary);}
-            else if(lastSummary!=null){render(lastSummary);Toast.makeText(this,"No se pudo actualizar. Se muestra la última información disponible.",Toast.LENGTH_LONG).show();}
+            else if(lastSummary!=null){render(lastSummary);addNotice((error==null?"No se pudo actualizar.":error)+" Se conserva la información anterior.");}
             else renderError(error);
         });
     }
@@ -116,7 +113,7 @@ public class MatchInfoActivity extends Activity {
     }
     private String dateText(){SimpleDateFormat f=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm",new Locale("es","UY"));f.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));String s=f.format(new Date(match.kickoff));return s.substring(0,1).toUpperCase(new Locale("es","UY"))+s.substring(1);}
 
-    private void render(MatchSummary s){content.removeAllViews();addHeader();if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback)addNotice(s.fallbackReason!=null&&!s.fallbackReason.trim().isEmpty()?s.fallbackReason+" Se muestra la información guardada.":"No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
+    private void render(MatchSummary s){content.removeAllViews();addHeader();showUpdateStatus(s);if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback&&s.updateReason.isEmpty())addNotice(s.fallbackReason!=null&&!s.fallbackReason.trim().isEmpty()?s.fallbackReason+" Se muestra la información guardada.":"No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
         boolean started=System.currentTimeMillis()>=match.kickoff;
         if(started)addNotice("Estos datos corresponden a la previa del encuentro. Para consultar el resultado, los goles y el desarrollo actualizado, usá Google.");
         section(started?"Contexto previo al partido":"Contexto",valueOrFallback(s.context));
@@ -124,13 +121,22 @@ public class MatchInfoActivity extends Activity {
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.away.name,match.visitante()),teamText(s.away));
         if(!finished){
             String titulo=AppStore.isInProgress(match)?"📺 Dónde verlo ahora":"📺 Dónde verlo";
-            if(!s.broadcastText.trim().isEmpty())section(titulo,s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry));
+            if(!s.broadcastText.trim().isEmpty())section(titulo,s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry)+(s.broadcastPreserved?"\n"+(s.broadcastReason.isEmpty()?"Se conserva una confirmación anterior.":s.broadcastReason):""));
             else section(titulo,"Transmisión no confirmada para Uruguay.");
         }
         if(!s.news.isEmpty()){StringBuilder b=new StringBuilder();for(String n:s.news)b.append("• ").append(n).append('\n');section(started?"Novedades consultadas":"Últimas novedades",trim(b));}
         if(s.absences.isEmpty())section(started?"Bajas reportadas antes del partido":"Bajas reportadas","No se encontraron bajas verificables en las fuentes consultadas. Esto no significa que ambos equipos tengan el plantel completo.");else{java.util.LinkedHashMap<String,java.util.ArrayList<MatchSummary.Absence>> grupos=new java.util.LinkedHashMap<>();for(MatchSummary.Absence a:s.absences){String equipo=a.team==null||a.team.trim().isEmpty()?"Equipo no especificado":a.team.trim();if(!grupos.containsKey(equipo))grupos.put(equipo,new java.util.ArrayList<>());grupos.get(equipo).add(a);}title(started?"Bajas reportadas antes del partido":"Bajas reportadas");for(java.util.Map.Entry<String,java.util.ArrayList<MatchSummary.Absence>> grupo:grupos.entrySet()){TextView encabezado=text(grupo.getKey(),16,Color.rgb(15,23,42),true);encabezado.setPadding(0,dp(12),0,dp(4));content.addView(encabezado);StringBuilder lista=new StringBuilder();for(MatchSummary.Absence a:grupo.getValue()){lista.append("• ").append(a.player==null||a.player.trim().isEmpty()?"Jugador sin especificar":a.player);if(a.reason!=null&&!a.reason.trim().isEmpty())lista.append(" — ").append(a.reason);lista.append('\n');}TextView detalle=text(trim(lista),16,Color.rgb(51,65,85),false);detalle.setLineSpacing(0,1.15f);detalle.setPadding(dp(12),0,0,dp(8));content.addView(detalle);}}
         if(!s.sources.isEmpty()){title("Fuentes");for(MatchSummary.Source source:s.sources)addSource(source);}
         addUpdated(s.updated);
+    }
+    private void showUpdateStatus(MatchSummary s){
+        if(s.updateStatus==null||s.updateStatus.isEmpty())return;
+        String status=s.updateStatus;
+        if("informacion_actualizada".equals(status))addNotice("Información actualizada. "+(s.updateReason==null?"":s.updateReason));
+        else if("sin_informacion_nueva".equals(status))addNotice("Sin información nueva. "+(s.updateReason==null?"":s.updateReason));
+        else if("informacion_anterior".equals(status)||s.fallback)addNotice("Se conserva información anterior. "+(s.updateReason==null||s.updateReason.isEmpty()?s.fallbackReason:s.updateReason));
+        else if("parcial".equals(status))addNotice("Actualización parcial. "+(s.updateReason==null?"":s.updateReason));
+        else if("cache".equals(status)||s.fromCache)addNotice("Información guardada. "+(s.updateReason==null?"":s.updateReason));
     }
     private void renderError(String error){content.removeAllViews();addHeader();TextView value=text(error==null?"No pudimos obtener la información del partido. Intentá nuevamente más tarde.":error,17,Color.rgb(51,65,85),false);value.setGravity(Gravity.CENTER);value.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(value);}
     private void section(String heading,String value){title(heading);TextView body=text(value,16,Color.rgb(51,65,85),false);body.setLineSpacing(0,1.15f);body.setPadding(0,dp(4),0,dp(12));content.addView(body);}
@@ -140,7 +146,7 @@ public class MatchInfoActivity extends Activity {
     private void addUpdated(String iso){
         long cachedAt=new AppStore(this).cachedMatchSummaryTime(match.fixtureId);
         String display=cachedAt>0?formatUpdated(Instant.ofEpochMilli(cachedAt).toString()):formatUpdated(iso);
-        String message=cachedAt>0?"Última consulta de información: ":"Fecha informada por el servicio: ";
+        String message=cachedAt>0?(lastSummary!=null&&lastSummary.fromCache?"Fecha del resumen guardado en el servidor: ":"Última consulta de información: "):"Fecha informada por el servicio: ";
         if(display.isEmpty()){display="no disponible";message="Fecha de consulta: ";}
         TextView value=text(message+display+" · Información guardada en el dispositivo",13,Color.GRAY,false);
         value.setGravity(Gravity.CENTER);value.setPadding(0,dp(24),0,dp(8));content.addView(value);

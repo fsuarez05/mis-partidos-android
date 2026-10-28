@@ -148,7 +148,7 @@ function doGet(e) {
         obtenerResumenPartido(
           datosPartido,
           forzarActualizacion,
-          String(params.allowOverLimit || '').toLowerCase() === 'true'
+          false
         );
 
 
@@ -1941,7 +1941,9 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
   const ttlSegundos = 2 * 60 * 60;
   const idPartido = String(fixtureId || 'sin_fixture').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 80);
   const resultadosPorTipo = {};
+  const resultadosActualizados = [];
   const pendientes = [];
+  const busquedas = { cacheadas: [], actualizadas: [], fallidas: [], resultadosNuevos: 0 };
 
   // Cada búsqueda se cachea por separado. Así evitamos una entrada enorme y,
   // si sólo falta una fuente, no volvemos a pagar las demás búsquedas.
@@ -1964,11 +1966,13 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
 
     if (recuperados !== null) {
       resultadosPorTipo[tipo] = recuperados;
+      busquedas.cacheadas.push(tipo);
       Logger.log('TAVILY ' + tipo + ' -> CACHE (' + recuperados.length + ' resultados)');
       registrarActividadTavily_('matchSummary', tipo, fixtureId, 'CACHE', recuperados.length + ' resultados');
     }
     else {
       pendientes.push({ consulta: consulta, tipo: tipo, cacheKey: cacheKey });
+      busquedas.actualizadas.push(tipo);
       Logger.log('TAVILY ' + tipo + ' -> TAVILY');
       // Se registra como llamada real solamente después de reservar el presupuesto.
     }
@@ -2008,13 +2012,18 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
       const status = respuesta.getResponseCode();
       if (status !== 200) {
         Logger.log('Tavily ' + tipo + ' respondió HTTP ' + status);
+        busquedas.actualizadas = busquedas.actualizadas.filter(function(value) { return value !== tipo; });
+        busquedas.fallidas.push(tipo + ' (HTTP ' + status + ')');
         resultadosPorTipo[tipo] = [];
         return;
       }
 
       try {
         const data = JSON.parse(respuesta.getContentText());
+        busquedas.actualizadas = busquedas.actualizadas.filter(function(value) { return value !== tipo; });
+        busquedas.actualizadas.push(tipo);
         const encontrados = Array.isArray(data.results) ? data.results : [];
+        busquedas.resultadosNuevos += encontrados.length;
         const compactos = encontrados.slice(0, 10).map(function(resultado) {
           return {
             title: String(resultado.title || '').substring(0, 500),
@@ -2026,6 +2035,7 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
           };
         });
         resultadosPorTipo[tipo] = compactos;
+        resultadosActualizados.push.apply(resultadosActualizados, compactos);
 
         {
           try {
@@ -2042,6 +2052,8 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
       }
       catch (error) {
         Logger.log('Respuesta inválida de Tavily ' + tipo + ': ' + error.message);
+        busquedas.actualizadas = busquedas.actualizadas.filter(function(value) { return value !== tipo; });
+        busquedas.fallidas.push(tipo + ' (respuesta inválida)');
         resultadosPorTipo[tipo] = [];
       }
     });
@@ -2052,8 +2064,17 @@ function buscarTavilyPartidosEnParalelo_(apiKey, consultas, pais, fixtureId, per
     const tipo = String(consulta.tipo || 'GENERAL').toUpperCase();
     todos = todos.concat(resultadosPorTipo[tipo] || []);
   });
-  return todos;
+  return { resultados: todos, resultadosActualizados: resultadosActualizados, busquedas: busquedas };
 }
+function motivoActualizacionTavily_(busquedas) {
+  busquedas = busquedas || { cacheadas: [], actualizadas: [], fallidas: [] };
+  const partes = [];
+  if (busquedas.actualizadas && busquedas.actualizadas.length) partes.push('consultadas ahora: ' + busquedas.actualizadas.join(', '));
+  if (busquedas.cacheadas && busquedas.cacheadas.length) partes.push('reutilizadas desde caché: ' + busquedas.cacheadas.join(', '));
+  if (busquedas.fallidas && busquedas.fallidas.length) partes.push('fallidas: ' + busquedas.fallidas.join(', '));
+  return partes.length ? partes.join('; ') + '.' : 'No se realizaron búsquedas Tavily.';
+}
+
 function paisTavily_(pais) {
   const mapa = {
     'uruguay': 'uruguay', 'argentina': 'argentina', 'espana': 'spain',
@@ -2344,6 +2365,8 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
 
 
         respuestaCache.desdeCache = true;
+        respuestaCache.estadoActualizacion = 'cache';
+        respuestaCache.motivoCache = 'No se solicitó una actualización manual; se reutilizó el resumen guardado en el servidor.';
 
 
         return respuestaCache;
@@ -2455,6 +2478,7 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
         `${variantesBusquedaTransmision_(partido.local)} ` +
         `${variantesBusquedaTransmision_(partido.visitante)} ` +
         `${partido.competicion || ''} ${partido.fecha} ` +
+        `previa actualidad novedades cómo llegan ambos equipos lesiones bajas sanciones ` +
         `Uruguay dónde ver en vivo Disney+ Premium ESPN ` +
         `programación televisación streaming canal fecha horario ` +
         `ESPN Uruguay Disney Plus Uruguay FútbolUy`,
@@ -2471,13 +2495,14 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
   // ============================================================
 
   let todosLosResultados = [];
-
+  let resultadosTavilyActualizados = [];
+  let busquedasTavily = { cacheadas: [], actualizadas: [], fallidas: [] };
 
   // Tavily obtiene las fuentes. Gemini queda dedicado a analizarlas, evitando
   // que un fallo de Google Search Grounding deje vacío todo el resumen.
   if (tavilyKey) {
     try {
-      todosLosResultados = buscarTavilyPartidosEnParalelo_(
+      const consultaTavily = buscarTavilyPartidosEnParalelo_(
         tavilyKey,
         consultas,
         partido.pais,
@@ -2485,21 +2510,16 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
         permitirExceso,
         forzarActualizacion
       );
+      todosLosResultados = consultaTavily.resultados;
+      resultadosTavilyActualizados = consultaTavily.resultadosActualizados;
+      busquedasTavily = consultaTavily.busquedas;
     }
     catch (error) {
       if (error && (error.code === 'TAVILY_DAILY_LIMIT' || error.code === 'TAVILY_MONTHLY_LIMIT')) throw error;
       Logger.log('Tavily no disponible: ' + error.message);
+      busquedasTavily.fallidas.push(String(error.message || 'Tavily no disponible'));
       todosLosResultados = [];
-    }
-
-    if (todosLosResultados.length === 0) {
-      try {
-        todosLosResultados = buscarTavilyGeneralRespaldo_(tavilyKey, partido, permitirExceso);
-      }
-      catch (errorRespaldo) {
-        if (errorRespaldo && (errorRespaldo.code === 'TAVILY_DAILY_LIMIT' || errorRespaldo.code === 'TAVILY_MONTHLY_LIMIT')) throw errorRespaldo;
-        Logger.log('Tavily respaldo no disponible: ' + errorRespaldo.message);
-      }
+      resultadosTavilyActualizados = [];
     }
   }
 
@@ -2511,6 +2531,7 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
   const resultadosUnicos = eliminarDuplicadosTavily(todosLosResultados);
   const resultadosFiltrados = filtrarResultadosTavilyPartido_(resultadosUnicos, partido);
   const transmisionConfirmada = detectarTransmisionUruguay_(resultadosFiltrados, partido);
+  busquedasTavily.resultadosUtilesNuevos = filtrarResultadosTavilyPartido_(resultadosTavilyActualizados, partido).length;
   guardarDiagnosticoTransmision_(partido, resultadosUnicos, resultadosFiltrados);
 
   // Nunca reenviamos resultados que no mencionen a ninguno de los equipos:
@@ -2554,6 +2575,9 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
 
       respaldo.motivoRespaldo =
         'No se encontró información nueva';
+      respaldo.estadoActualizacion = 'informacion_anterior';
+      respaldo.motivoActualizacion = 'La consulta manual no encontró fuentes nuevas útiles; se conserva el último resumen guardado.';
+      respaldo.busquedasTavily = busquedasTavily;
 
 
       return respaldo;
@@ -2611,7 +2635,10 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
         new Date().toISOString(),
 
       desdeCache:
-        false
+        false,
+      estadoActualizacion: 'sin_informacion_nueva',
+      motivoActualizacion: 'La consulta terminó sin encontrar información nueva para este partido.',
+      busquedasTavily: busquedasTavily
 
     };
 
@@ -2623,7 +2650,7 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
     );
 
 
-    return respuestaVacia;
+      return respuestaVacia;
 
   }
 
@@ -3165,6 +3192,9 @@ ${fuentesTexto}
 
       respaldo.motivoRespaldo =
         'Servicio de IA temporalmente no disponible';
+      respaldo.estadoActualizacion = 'informacion_anterior';
+      respaldo.motivoActualizacion = 'Gemini no respondió; se conserva el último resumen guardado.';
+      respaldo.busquedasTavily = busquedasTavily;
 
 
       Logger.log(
@@ -3296,6 +3326,9 @@ ${fuentesTexto}
 
       respaldo.motivoRespaldo =
         'La actualización generó una respuesta inválida';
+      respaldo.estadoActualizacion = 'informacion_anterior';
+      respaldo.motivoActualizacion = 'Gemini devolvió una respuesta inválida; se conserva el último resumen guardado.';
+      respaldo.busquedasTavily = busquedasTavily;
 
 
       return respaldo;
@@ -3495,9 +3528,22 @@ ${fuentesTexto}
       false,
 
     respaldoPorError:
-      false
+      false,
+
+    estadoActualizacion: busquedasTavily.resultadosUtilesNuevos > 0
+      ? 'informacion_actualizada'
+      : (busquedasTavily.fallidas.length > 0 ? 'parcial' : 'sin_informacion_nueva'),
+
+    motivoActualizacion: motivoActualizacionTavily_(busquedasTavily),
+
+    busquedasTavily: busquedasTavily
 
   };
+
+  if (!transmisionConfirmada.confirmada && respaldoAnterior && validarTransmisionUruguay_(respaldoAnterior.transmision).confirmada) {
+    respuestaFinal.transmision.conservadaDeConsultaAnterior = true;
+    respuestaFinal.transmision.motivoConservacion = 'No se encontró una confirmación nueva; se conserva la transmisión confirmada anteriormente.';
+  }
 
 
   // ============================================================
@@ -3800,34 +3846,51 @@ function detectarTransmisionUruguay_(resultados, partido) {
 
     const titulo = normalizarTextoComparacion_(resultado.title || '');
     const contenido = normalizarTextoComparacion_(resultado.content || '');
+    const contenidoOriginal = String(resultado.content || '');
     const url = String(resultado.url || '').toLowerCase();
     const texto = ' ' + titulo + ' ' + contenido + ' ';
     const dominioUruguayo = /(?:\.com\.uy|\.uy)(?:\/|$)/.test(url);
     const mencionaUruguay = /\buruguay\b|\buruguayo\b|\buru\b/.test(texto);
-    const paisExtranjero = /\bargentina\b|\bespana\b|\bmexico\b|\bestados unidos\b|\bunited states\b|\bchile\b|\bcolombia\b|\bperu\b/.test(texto);
-    if ((!dominioUruguayo && !mencionaUruguay) || (paisExtranjero && !mencionaUruguay && !dominioUruguayo)) return;
+    if (!dominioUruguayo && !mencionaUruguay) return;
 
-    // Ambos equipos ya fueron validados. Exigimos además lenguaje inequívoco
-    // de emisión para no convertir una previa o una ficha de resultados en TV.
-    if (!/donde ver|como ver|televisa|televisacion|transmision|ver en vivo|canal de tv|streaming|programacion/.test(texto)) return;
+    // El canal debe aparecer atribuido en una frase que hable de emisión y
+    // disponibilidad uruguaya, no sólo en el texto general de derechos de liga.
+    const frases = [String(resultado.title || '')].concat(contenidoOriginal.split(/(?<=[.!?])\s+|\n+/));
+    const evidenciaEmision = frases.filter(function(frase) {
+      const normalizada = normalizarTextoComparacion_(frase);
+      const normalizadaConEspacios = ' ' + normalizada + ' ';
+      const localizacionUY = dominioUruguayo || /\buruguay\b|\buruguayo\b|\buru\b/.test(normalizada);
+      const hablaDeEmision = /donde ver|como ver|televisa|televisacion|transmision|ver en vivo|canal de tv|streaming|programacion|disponible/.test(normalizada);
+      const nombraProveedor = /espn|dsports|directv sports|vtv|tenfield|tnt sports|disney|dgo|auf tv|antel tv/.test(normalizada);
+      function mencionaEquipo(nombre) {
+        return obtenerVariantesNombreEquipo_(normalizarTextoComparacion_(nombre)).some(function(variant) {
+          return variant.length >= 4 && normalizadaConEspacios.indexOf(' ' + variant + ' ') !== -1;
+        });
+      }
+      // La misma frase de emisión debe identificar a ambos equipos; esto evita
+      // convertir derechos generales de una liga en una señal para un partido.
+      return localizacionUY && hablaDeEmision && nombraProveedor && mencionaEquipo(partido.local) && mencionaEquipo(partido.visitante);
+    }).join(' ');
+    const evidencia = normalizarTextoComparacion_(evidenciaEmision);
+    if (!evidencia) return;
 
-    if (/\bdsports 2\b|\bdirectv sports 2\b/.test(texto)) agregar(canales,vistosCanal,'DSports 2');
-    else if (/\bdsports\b|\bdirectv sports\b/.test(texto)) agregar(canales,vistosCanal,'DSports');
-    if (/\bespn premium\b/.test(texto)) agregar(canales,vistosCanal,'ESPN Premium');
-    else if (/\bespn 4\b/.test(texto)) agregar(canales,vistosCanal,'ESPN 4');
-    else if (/\bespn 3\b/.test(texto)) agregar(canales,vistosCanal,'ESPN 3');
-    else if (/\bespn 2\b/.test(texto)) agregar(canales,vistosCanal,'ESPN 2');
-    else if (/\bespn\b/.test(texto)) agregar(canales,vistosCanal,'ESPN');
-    if (/\bvtv plus\b|\bvtv \+\b/.test(texto)) agregar(canales,vistosCanal,'VTV Plus');
-    else if (/\bvtv\b/.test(texto)) agregar(canales,vistosCanal,'VTV');
-    if (/\btenfield\b/.test(texto)) agregar(canales,vistosCanal,'Tenfield');
-    if (/\btnt sports\b/.test(texto)) agregar(canales,vistosCanal,'TNT Sports');
+    if (/\bdsports 2\b|\bdirectv sports 2\b/.test(evidencia)) agregar(canales,vistosCanal,'DSports 2');
+    else if (/\bdsports\b|\bdirectv sports\b/.test(evidencia)) agregar(canales,vistosCanal,'DSports');
+    if (/\bespn premium\b/.test(evidencia)) agregar(canales,vistosCanal,'ESPN Premium');
+    else if (/\bespn 4\b/.test(evidencia)) agregar(canales,vistosCanal,'ESPN 4');
+    else if (/\bespn 3\b/.test(evidencia)) agregar(canales,vistosCanal,'ESPN 3');
+    else if (/\bespn 2\b/.test(evidencia)) agregar(canales,vistosCanal,'ESPN 2');
+    else if (/\bespn\b/.test(evidencia)) agregar(canales,vistosCanal,'ESPN');
+    if (/\bvtv plus\b|\bvtv \+\b/.test(evidencia)) agregar(canales,vistosCanal,'VTV Plus');
+    else if (/\bvtv\b/.test(evidencia)) agregar(canales,vistosCanal,'VTV');
+    if (/\btenfield\b/.test(evidencia)) agregar(canales,vistosCanal,'Tenfield');
+    if (/\btnt sports\b/.test(evidencia)) agregar(canales,vistosCanal,'TNT Sports');
 
-    if (/\bdisney plus premium\b|\bdisney premium\b/.test(texto)) agregar(streaming,vistosStreaming,'Disney+ Premium');
-    else if (/\bdisney plus\b|\bdisney\+\b/.test(String(resultado.title || '') + ' ' + String(resultado.content || ''))) agregar(streaming,vistosStreaming,'Disney+');
-    if (/\bdgo\b/.test(texto)) agregar(streaming,vistosStreaming,'DGO');
-    if (/\bauf tv\b/.test(texto)) agregar(streaming,vistosStreaming,'AUF TV');
-    if (/\bantel tv\b/.test(texto)) agregar(streaming,vistosStreaming,'Antel TV');
+    if (/\bdisney plus premium\b|\bdisney premium\b/.test(evidencia)) agregar(streaming,vistosStreaming,'Disney+ Premium');
+    else if (/\bdisney plus\b|\bdisney\b/.test(evidencia)) agregar(streaming,vistosStreaming,'Disney+');
+    if (/\bdgo\b/.test(evidencia)) agregar(streaming,vistosStreaming,'DGO');
+    if (/\bauf tv\b/.test(evidencia)) agregar(streaming,vistosStreaming,'AUF TV');
+    if (/\bantel tv\b/.test(evidencia)) agregar(streaming,vistosStreaming,'Antel TV');
 
     if (canales.length || streaming.length) fuentes.push(String(resultado.url || ''));
   });
@@ -4386,9 +4449,9 @@ function consultarGeminiConReintentos_(
     'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 
-  // Dos intentos mantienen tolerancia a errores temporales sin consumir casi
-  // todo el tiempo máximo de la solicitud Android/Apps Script.
-  const maxIntentos = 2;
+  // Una llamada por actualización manual evita espera larga y reintentos
+  // de pago; ante error se devuelve el resumen anterior si existe.
+  const maxIntentos = 1;
 
 
   for (

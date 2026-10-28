@@ -39,16 +39,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
 public class MainActivity extends Activity {
     private AppStore store;
     private LinearLayout list;
     private String syncStatus = "";
-    private final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE d MMM · HH:mm", new Locale("es", "UY"));
+    private final SimpleDateFormat dateFormat = localDateFormat("EEE d MMM · HH:mm");
     private final Handler refreshHandler=new Handler(Looper.getMainLooper());
     private final Runnable timeRefresh=new Runnable(){@Override public void run(){if(list!=null)refresh();refreshHandler.postDelayed(this,60_000L);}};
 
@@ -107,18 +105,18 @@ public class MainActivity extends Activity {
     private void addFavoriteMatchesByDate(List<Match>matches){String lastDay="";for(Match m:matches){String day=matchDayLabel(m.kickoff);if(!day.equals(lastDay)){TextView date=text(day,13,Color.GRAY,true);date.setPadding(dp(5),dp(8),0,dp(7));list.addView(date);lastDay=day;}list.addView(matchCard(m));}}
 
     private String matchDayLabel(long kickoff){
-        ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(kickoff).atZone(zone).toLocalDate();
+        LocalDate today=MontevideoTime.date(System.currentTimeMillis()),match=MontevideoTime.date(kickoff);
         long days=ChronoUnit.DAYS.between(today,match);
         if(days==0)return "Hoy";
         if(days==1)return "Mañana";
-        String value=new SimpleDateFormat("EEEE d 'de' MMMM",new Locale("es","UY")).format(new Date(kickoff));
+        String value=localDateFormat("EEEE d 'de' MMMM").format(new Date(kickoff));
         return value.substring(0,1).toUpperCase(new Locale("es","UY"))+value.substring(1);
     }
 
     private String matchDateLabel(long kickoff){
-        ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(kickoff).atZone(zone).toLocalDate();
+        LocalDate today=MontevideoTime.date(System.currentTimeMillis()),match=MontevideoTime.date(kickoff);
         long days=ChronoUnit.DAYS.between(today,match);
-        String hour=new SimpleDateFormat("HH:mm",new Locale("es","UY")).format(new Date(kickoff));
+        String hour=localDateFormat("HH:mm").format(new Date(kickoff));
         if(days==0)return "Hoy · "+hour;
         if(days==1)return "Mañana · "+hour;
         return dateFormat.format(new Date(kickoff));
@@ -139,14 +137,14 @@ public class MainActivity extends Activity {
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));
         android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
         table.addView(todayRow("HORA","PARTIDO","COMPETICIÓN",true));table.addView(tableDivider());
-        SimpleDateFormat hourFormat=new SimpleDateFormat("HH:mm",new Locale("es","UY"));
+        SimpleDateFormat hourFormat=localDateFormat("HH:mm");
         for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(hourFormat.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,AppStore.shortName(m.competition.replace(" · dato de prueba","")),false);row.setOnClickListener(v->showInfoOrGoogle(m));row.setContentDescription("Opciones para "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
 
     private View resultsTable(List<Match> matches){
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(10),dp(6),dp(10),dp(6));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(12));bg.setStroke(dp(1),Color.rgb(226,232,240));table.setBackground(bg);
-        table.addView(todayRow("DÍA","PARTIDO","RESULTADO",true));table.addView(tableDivider());SimpleDateFormat day=new SimpleDateFormat("EEE d",new Locale("es","UY"));
+        table.addView(todayRow("DÍA","PARTIDO","RESULTADO",true));table.addView(tableDivider());SimpleDateFormat day=localDateFormat("EEE d");
         for(int i=0;i<matches.size();i++){Match m=matches.get(i);View row=todayRow(day.format(new Date(m.kickoff)),m.team+" vs. "+m.opponent,m.homeScore+" - "+m.awayScore,false);row.setOnClickListener(v->showFinishedActions(m));row.setContentDescription("Opciones para el resultado de "+m.team+" contra "+m.opponent);table.addView(row);if(i<matches.size()-1)table.addView(tableDivider());}
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,dp(36));table.setLayoutParams(lp);return table;
     }
@@ -455,7 +453,7 @@ public class MainActivity extends Activity {
         List<String> available=new ArrayList<>(store.selectedTeams());available.addAll(store.selectedNationalTeams());
         Spinner team=new Spinner(this); team.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,available));
         EditText rival=new EditText(this); rival.setHint("Rival"); EditText comp=new EditText(this); comp.setHint("Competición (opcional)");
-        Button when=button("Elegir fecha y hora"); Calendar chosen=Calendar.getInstance(); chosen.add(Calendar.HOUR_OF_DAY,2);
+        Button when=button("Elegir fecha y hora"); Calendar chosen=Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Montevideo")); chosen.add(Calendar.HOUR_OF_DAY,2);
         when.setOnClickListener(v->pickDateTime(chosen,when)); when.setText(dateFormat.format(chosen.getTime()));
         form.addView(team); form.addView(rival); form.addView(comp); form.addView(when);
         new AlertDialog.Builder(this).setTitle("Agregar partido manual").setView(form).setPositiveButton("Agregar",(d,w)->{
@@ -474,9 +472,9 @@ public class MainActivity extends Activity {
     private void syncNow(boolean force){syncNow(force,false);}
     private void syncNow(boolean force,boolean dailyOpen){if(!ApiClient.configured(this)){syncStatus="Sin conexión configurada";buildScreen();return;}int total=store.selectedTeams().size()+store.selectedNationalTeams().size();syncStatus=total==0?"Actualizando partidos…":"Actualizando "+total+" equipos…";buildScreen();ApiClient.sync(this,force,(ok,message)->{syncStatus=message;if(ok){if(dailyOpen){store.markDailyOpenSync();BackgroundSyncScheduler.markCompleted(this);}AlarmScheduler.scheduleAll(this);MatchWidgetProvider.updateAll(this);}
         buildScreen();if(force&&!dailyOpen)Toast.makeText(this,message,Toast.LENGTH_LONG).show();});}
-    private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
-    private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+new SimpleDateFormat("dd/MM HH:mm",new Locale("es","UY")).format(new Date(value));}
-    private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";ZoneId zone=ZoneId.systemDefault();LocalDate today=Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate(),match=Instant.ofEpochMilli(m.kickoff).atZone(zone).toLocalDate();long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}
+    private String lastSyncText(){long value=store.lastApiSync();if(value==0)return"Sin sincronizar";return"Última actualización: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
+    private String nextSyncText(){long value=store.nextBackgroundSync();if(value<=System.currentTimeMillis())return"\n↻ Actualización automática pendiente";return"\n↻ Próxima automática: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
+    private String matchTiming(Match m){if(AppStore.isInProgress(m))return"Jugando ahora";long minutes=Math.max(1,(m.kickoff-System.currentTimeMillis()+59_999)/60_000);if(minutes<60)return"Faltan "+minutes+" min";if(minutes<24*60)return"Faltan "+(minutes/60)+" h "+(minutes%60)+" min";LocalDate today=MontevideoTime.date(System.currentTimeMillis()),match=MontevideoTime.date(m.kickoff);long days=Math.max(0,ChronoUnit.DAYS.between(today,match));return days==0?"Hoy":days==1?"Mañana":"Faltan "+days+" días";}
     private void showMatchActions(Match m){if(AppStore.isInProgress(m)){String[]items={"Ver información del partido","Buscar partido en Google","Compartir partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();return;}String[]items={"Ver información del partido","Buscar partido en Google","Agregar al calendario","Compartir partido","Configurar aviso de este partido"};new AlertDialog.Builder(this).setTitle(m.opponent.isEmpty()?m.team:m.team+" vs. "+m.opponent).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else if(pos==1)searchMatchOnGoogle(m);else if(pos==2)addToCalendar(m);else if(pos==3)shareMatch(m);else chooseNoticeForMatch(m);}).setNegativeButton("Cerrar",null).show();}
     private void showInfoOrGoogle(Match m){String[]items={"Ver información del partido","Buscar en Google"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m);else searchMatchOnGoogle(m);}).setNegativeButton("Cerrar",null).show();}
     private void showFinishedActions(Match m){String[]items={"Ver información del partido","Buscar partido en Google","Compartir resultado"};new AlertDialog.Builder(this).setTitle(m.local()+" vs. "+m.visitante()).setItems(items,(d,pos)->{if(pos==0)openMatchInfo(m,true);else if(pos==1)searchMatchOnGoogle(m);else shareMatch(m);}).setNegativeButton("Cerrar",null).show();}
@@ -523,6 +521,7 @@ public class MainActivity extends Activity {
     private void chooseNoticeForMatch(Match m){String[]labels={"Usar aviso del equipo","15 minutos antes","30 minutos antes","1 hora antes","2 horas antes"};int[]values={-1,15,30,60,120};new AlertDialog.Builder(this).setTitle("Aviso de este partido").setSingleChoiceItems(labels,-1,null).setPositiveButton("Guardar",(d,w)->{int pos=((AlertDialog)d).getListView().getCheckedItemPosition();if(pos>=0){store.saveNoticeMinutesFor(m,values[pos]);AlarmScheduler.scheduleAll(this);Toast.makeText(this,"Aviso del partido guardado",Toast.LENGTH_SHORT).show();}}).setNegativeButton("Cancelar",null).show();}
     private TextView text(String s,int size,int color,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(color);if(bold)v.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return v;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
+    private static SimpleDateFormat localDateFormat(String pattern){SimpleDateFormat value=new SimpleDateFormat(pattern,new Locale("es","UY"));value.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));return value;}
     private LinearLayout.LayoutParams weight(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(2),0,dp(2),0);return p;}
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
 }

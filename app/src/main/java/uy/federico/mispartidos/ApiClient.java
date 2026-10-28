@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.time.Instant;
 
 class ApiClient {
     interface Callback { void done(boolean ok, String message); }
@@ -70,7 +71,8 @@ class ApiClient {
                 List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
                 List<Match> today=new ArrayList<>(),allToday=new ArrayList<>();
                 final List<Match> recentResults=Collections.synchronizedList(new ArrayList<>());
-                String date=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(new Date());
+                SimpleDateFormat localDate=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY"));localDate.setTimeZone(TimeZone.getTimeZone("America/Montevideo"));
+                String date=localDate.format(new Date());
                 Set<String> clubCompetitions=store.selectedClubCompetitions();
                 Set<String> nationalCompetitions=store.selectedNationalCompetitions();
                 int teamCount=store.selectedTeams().size()+store.selectedNationalTeams().size();
@@ -82,8 +84,8 @@ class ApiClient {
                         recentResults.addAll(parseFavoriteResults(response,store));
                     }catch(Exception e){failures.add("partidos de hoy");reasons.add("GOAL API no respondió; se conservan los datos anteriores disponibles.");}
                     try{
-                        java.util.Calendar yesterday=java.util.Calendar.getInstance();yesterday.add(java.util.Calendar.DAY_OF_YEAR,-1);
-                        String previousDate=new SimpleDateFormat("yyyy-MM-dd",new Locale("es","UY")).format(yesterday.getTime());
+                        java.util.Calendar yesterday=java.util.Calendar.getInstance(TimeZone.getTimeZone("America/Montevideo"));yesterday.add(java.util.Calendar.DAY_OF_YEAR,-1);
+                        String previousDate=localDate.format(yesterday.getTime());
                         recentResults.addAll(parseFavoriteResults(request("fixturesByDate",params("date",previousDate,"limit","500")),store));
                     }catch(Exception ignored){}
                 }
@@ -302,6 +304,7 @@ class ApiClient {
             String homeId=f.optString("homeTeamId"),awayId=f.optString("awayTeamId");
             String home=nameOf(f,"homeTeam","homeTeamName"),away=nameOf(f,"awayTeam","awayTeamName");
             String opponent=selectedId.equals(homeId)?away:selectedId.equals(awayId)?home:(normalize(home).equals(normalize(selectedName))?away:home);
+            if(FixtureStatusPolicy.POSTPONED.equals(fixtureStatus(f,kickoff,now)))continue;
             Match parsed=matchFromFixture(f,favoriteMatchId(matchId(f),selectedName),selectedName,opponent,kickoff,-1,-1);if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }
         result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
@@ -323,7 +326,7 @@ class ApiClient {
                 // Sólo recurrimos al nombre si aún no existe un ID resuelto, y en ese
                 // caso exigimos además el ámbito correcto para evitar homónimos.
                 if(!hasSelectedId){
-                    boolean nameHome=sameTeam(team,match.team),nameAway=sameTeam(team,match.opponent);
+                    boolean nameHome=TeamIdentity.sameName(team,match.team),nameAway=TeamIdentity.sameName(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
                         home=international&&nameHome;away=international&&nameAway;
@@ -346,9 +349,12 @@ class ApiClient {
 
     private static boolean isInternationalFixture(Match match){
         String country=canonicalCountry(match.country),competition=canonicalCompetition(match.competition);
-        return country.equals("intl")||country.equals("world")||country.equals("europe")||country.equals("south america")
-                ||competition.contains("uefa")||competition.contains("conmebol")||competition.contains("world cup")
-                ||competition.contains("copa america")||competition.contains("friendlies");
+        return country.equals("intl")||country.equals("international")||country.equals("world")||country.equals("europe")||country.equals("south america")
+                ||competition.contains("fifa")||competition.contains("uefa")||competition.contains("conmebol")
+                ||competition.contains("afc")||competition.contains("caf")||competition.contains("concacaf")||competition.contains("ofc")
+                ||competition.contains("world cup")||competition.contains("world qualifier")||competition.contains("copa america")
+                ||competition.contains("asian cup")||competition.contains("africa cup")||competition.contains("gold cup")
+                ||competition.contains("eliminatoria")||competition.contains("friendl")||competition.contains("amistoso");
     }
 
     private static boolean isYouthOrWomenFixture(Match match){
@@ -362,19 +368,7 @@ class ApiClient {
         List<Long> remove=new ArrayList<>();for(Map.Entry<Long,Match> e:favorites.entrySet())if(sameTeam(team,e.getValue().team))remove.add(e.getKey());for(Long id:remove)favorites.remove(id);
     }
 
-    private static boolean sameTeam(String a,String b){
-        return canonicalTeam(a).equals(canonicalTeam(b));
-    }
-
-    private static String canonicalTeam(String value){
-        String n=normalize(value).replaceAll("\\b(fc|afc|cf|ca|sc|club)\\b"," ").replaceAll("\\s+"," ").trim();
-        if(n.equals("internazionale"))return"inter";if(n.equals("paris saint germain"))return"psg";
-        Map<String,String> aliases=new HashMap<>();
-        aliases.put("norway","noruega");aliases.put("netherlands","paises bajos");aliases.put("belgium","belgica");
-        aliases.put("germany","alemania");aliases.put("spain","espana");aliases.put("england","inglaterra");aliases.put("france","francia");
-        aliases.put("greece","grecia");aliases.put("brazil","brasil");aliases.put("japan","japon");aliases.put("south korea","corea del sur");aliases.put("usa","estados unidos");
-        return aliases.containsKey(n)?aliases.get(n):n;
-    }
+    private static boolean sameTeam(String a,String b){return TeamIdentity.sameName(a,b);}
 
     static String displayTeamName(String value){
         String n=normalize(value);Map<String,String> names=new HashMap<>();
@@ -448,6 +442,8 @@ class ApiClient {
                     boolean nameMatch=sameTeam(favorite,home)||sameTeam(favorite,away);
                     if(!nameMatch)continue;
                     if(national.contains(favorite)){
+                        String knownId=store.apiTeamId("goal:N:"+favorite);
+                        if(knownId!=null&&!knownId.isEmpty()&&!knownId.equals(homeId)&&!knownId.equals(awayId)&&!homeId.isEmpty()&&!awayId.isEmpty())continue;
                         Match candidate=matchFromFixture(f,matchId(f),home,away,kickoff,-1,-1);
                         if(isInternationalFixture(candidate)){selected=true;break;}
                     }else{
@@ -455,7 +451,7 @@ class ApiClient {
                         // Si ya tenemos un ID resuelto, sólo ese ID puede identificar al
                         // favorito (evita Arsenal FC de otra liga/país).
                         String knownId=store.apiTeamId("goal:C:"+favorite);
-                        if(knownId!=null&&!knownId.isEmpty())continue;
+                        if(knownId!=null&&!knownId.isEmpty()&&!homeId.isEmpty()&&!awayId.isEmpty())continue;
                         String expected=canonicalCountry(AppStore.countryForClub(favorite));
                         if(!expected.isEmpty()&&expected.equals(fixtureCountry)){selected=true;break;}
                     }
@@ -468,14 +464,11 @@ class ApiClient {
     }
 
     private static boolean fixtureIsFinished(JSONObject f,long now,long kickoff){
-        String status=normalize(f.optString("status")+" "+f.optString("state")+" "+f.optString("statusName")+" "+f.optString("fixtureStatus"));
-        // No usar contains("final"): "Final", "Quarter Finals", etc. también
-        // pueden ser la fase del torneo y GOAL puede incluirla en estos campos.
-        if(status.contains("finished")||status.contains("full time")||status.equals("ft")||status.contains("after penalties")||status.contains("after extra time")||status.contains("ended")||status.equals("final"))return true;
-        if(status.contains("live")||status.contains("playing")||status.contains("in progress")||status.contains("half time")||status.contains("halftime")||status.contains("1st half")||status.contains("2nd half"))return false;
-        // Nunca inferir finalizado sólo por tiempo si el partido todavía no empezó.
-        return kickoff<=now&&now>=kickoff+AppStore.MATCH_DURATION_MS;
+        return FixtureStatusPolicy.isFinished(rawFixtureStatus(f),kickoff,now,AppStore.MATCH_DURATION_MS);
     }
+
+    private static String rawFixtureStatus(JSONObject f){return f.optString("status")+" "+f.optString("state")+" "+f.optString("statusName")+" "+f.optString("fixtureStatus");}
+    private static String fixtureStatus(JSONObject f,long kickoff,long now){return FixtureStatusPolicy.classify(rawFixtureStatus(f),kickoff,now,AppStore.MATCH_DURATION_MS);}
 
     private static int[] scoreOf(JSONObject f){
         int home=nullableInt(f,"homeTeamFtScore");if(home<0)home=nullableInt(f,"homeTeamScore");if(home<0)home=nullableInt(f,"homeScore");
@@ -497,7 +490,8 @@ class ApiClient {
             // Los finalizados pertenecen a Resultados recientes. No deben seguir
             // apareciendo como partidos de hoy ni entrar al prefetch automático
             // de información previa.
-            if(fixtureIsFinished(f,System.currentTimeMillis(),kickoff))continue;
+            long now=System.currentTimeMillis();String state=fixtureStatus(f,kickoff,now);
+            if(FixtureStatusPolicy.FINISHED.equals(state)||FixtureStatusPolicy.POSTPONED.equals(state))continue;
             Match parsed=matchFromFixture(f,matchId(f),nameOf(f,"homeTeam","homeTeamName"),nameOf(f,"awayTeam","awayTeamName"),kickoff,-1,-1);
             if(!isYouthOrWomenFixture(parsed))result.add(parsed);
         }
@@ -521,13 +515,10 @@ class ApiClient {
         String fixtureId=f.optString("apiId");if(fixtureId.isEmpty())fixtureId=f.optString("id");
         return new Match(displayId,displayTeamName(team),displayTeamName(opponent),competitionName(f),kickoff,false,homeScore,awayScore,
                 fixtureId,displayTeamName(nameOf(f,"homeTeam","homeTeamName")),displayTeamName(nameOf(f,"awayTeam","awayTeamName")),
-                f.optString("homeTeamId"),f.optString("awayTeamId"),f.optString("countryName",f.optString("country")));
+                f.optString("homeTeamId"),f.optString("awayTeamId"),f.optString("countryName",f.optString("country")),fixtureStatus(f,kickoff,System.currentTimeMillis()));
     }
 
     static void matchSummary(Context context,Match match,boolean refresh,MatchSummaryCallback callback){
-        matchSummary(context,match,refresh,false,callback);
-    }
-    static void matchSummary(Context context,Match match,boolean refresh,boolean allowOverLimit,MatchSummaryCallback callback){
         prepare(context);
         new Thread(()->{
             MatchSummary summary=null;String error=null;
@@ -539,12 +530,13 @@ class ApiClient {
                         "pais",match.country,"competicion",match.competition,"fecha",date.format(new Date(match.kickoff)),
                         "hora",time.format(new Date(match.kickoff)),"localId",match.homeTeamId,"visitanteId",match.awayTeamId);
                 if(refresh)p.put("refresh","true");
-                if(allowOverLimit)p.put("allowOverLimit","true");
                 JSONObject wrapper=request("matchSummary",p);
-                if(!wrapper.optBoolean("ok")){if("TAVILY_MONTHLY_LIMIT".equals(wrapper.optString("errorCode")))throw new Exception("TAVILY_MONTHLY_LIMIT");if("TAVILY_DAILY_LIMIT".equals(wrapper.optString("errorCode"))){JSONObject budget=wrapper.optJSONObject("budget");String detail=budget==null?"":("|"+budget.optInt("creditosEstimadosConsumidos",-1)+"|"+budget.optInt("cuotaMensual",-1)+"|"+budget.optInt("disponiblesHoy",-1));throw new Exception("TAVILY_DAILY_LIMIT"+detail);}throw new Exception("No se pudo obtener la información");}
+                if(!wrapper.optBoolean("ok")){if("TAVILY_MONTHLY_LIMIT".equals(wrapper.optString("errorCode")))throw new Exception("TAVILY_MONTHLY_LIMIT");if("TAVILY_DAILY_LIMIT".equals(wrapper.optString("errorCode"))){JSONObject budget=wrapper.optJSONObject("budget");String detail=budget==null?"":("|"+budget.optInt("creditosEstimadosConsumidos",-1)+"|"+budget.optInt("cuotaMensual",-1)+"|"+budget.optInt("disponiblesHoy",-1));throw new Exception("TAVILY_DAILY_LIMIT"+detail);}throw new Exception(wrapper.optString("error","No se pudo obtener la información"));}
                 JSONObject data=wrapper.optJSONObject("data");
                 if(data==null||!data.optBoolean("ok",true))throw new Exception("No se pudo obtener la información");
                 summary=MatchSummary.fromJson(data);
+                if(summary.updateStatus.isEmpty())summary.updateStatus=summary.fromCache?"cache":(summary.fallback?"informacion_anterior":(!summary.found?"sin_informacion_nueva":"informacion_actualizada"));
+                if(summary.updateReason.isEmpty()&&summary.fromCache)summary.updateReason="El servidor devolvió información guardada.";
                 AppStore store=new AppStore(context);
                 MatchSummary previous=store.cachedMatchSummary(match.fixtureId);
                 summary.preserveConfirmedBroadcastFrom(previous);
@@ -561,18 +553,21 @@ class ApiClient {
                         previousUseful?previous.sources.size():0,summary.broadcastConfirmed,
                         previous!=null&&previous.broadcastConfirmed);
                 if(accept){
-                    store.saveMatchSummary(match.fixtureId,summary);
+                    long savedAt=summary.fromCache?summaryTimestamp(summary.updated):System.currentTimeMillis();
+                    store.saveMatchSummary(match.fixtureId,summary,savedAt);
                 }else if(previousUseful){
                     boolean newFallback=summary.fallback;
                     summary=previous;
                     summary.fallback=true;
+                    summary.updateStatus="informacion_anterior";
                     summary.fallbackReason=!useful
                             ?"La nueva consulta no aportó información útil."
                             :newFallback
                             ?"La nueva consulta devolvió información de respaldo; se conserva la anterior."
                             :"La nueva consulta no mejoró la información guardada recientemente.";
+                    summary.updateReason=summary.fallbackReason;
                 }
-            }catch(Exception e){error=e.getMessage()!=null&&(e.getMessage().startsWith("TAVILY_DAILY_LIMIT")||e.getMessage().equals("TAVILY_MONTHLY_LIMIT"))?e.getMessage():"No pudimos obtener la información del partido. Intentá nuevamente más tarde.";}
+            }catch(Exception e){String detail=e.getMessage();error=detail!=null&&(detail.startsWith("TAVILY_DAILY_LIMIT")||detail.equals("TAVILY_MONTHLY_LIMIT"))?detail:"No se pudo actualizar"+(detail==null||detail.trim().isEmpty()?".":": "+detail.substring(0,Math.min(180,detail.length())));}
             MatchSummary finalSummary=summary;String finalError=error;
             new Handler(Looper.getMainLooper()).post(()->callback.done(finalSummary,finalError));
         }).start();
@@ -714,10 +709,12 @@ class ApiClient {
         throw new Exception("Sin conexión temporal. Probá actualizar nuevamente.",last);
     }
 
+    private static long summaryTimestamp(String iso){try{return Instant.parse(iso).toEpochMilli();}catch(Exception ignored){return 0L;}}
+
     private static JSONObject requestOnce(String action,Map<String,String> values)throws Exception{
         StringBuilder u=new StringBuilder(proxyUrl);u.append(proxyUrl.contains("?")?'&':'?').append("action=").append(enc(action)).append("&token=").append(enc(proxyToken));
         for(Map.Entry<String,String> e:values.entrySet())u.append('&').append(enc(e.getKey())).append('=').append(enc(e.getValue()));
-        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(20000);c.setReadTimeout("matchSummary".equals(action)?75000:("fixturesByDate".equals(action)?20000:45000));c.setInstanceFollowRedirects(true);
+        HttpURLConnection c=(HttpURLConnection)new URL(u.toString()).openConnection();c.setConnectTimeout(15000);c.setReadTimeout("matchSummary".equals(action)?45000:("fixturesByDate".equals(action)?20000:45000));c.setInstanceFollowRedirects(true);
         int status=c.getResponseCode();InputStream stream=status>=200&&status<400?c.getInputStream():c.getErrorStream();
         BufferedReader reader=new BufferedReader(new InputStreamReader(stream,StandardCharsets.UTF_8));StringBuilder body=new StringBuilder();String line;
         while((line=reader.readLine())!=null)body.append(line);reader.close();c.disconnect();

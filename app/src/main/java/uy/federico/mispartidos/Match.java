@@ -18,6 +18,7 @@ public class Match {
     public final String homeTeamId;
     public final String awayTeamId;
     public final String country;
+    public final String status;
 
     public Match(long id, String team, String opponent, String competition, long kickoff, boolean manual) {
         this(id,team,opponent,competition,kickoff,manual,-1,-1);
@@ -25,17 +26,23 @@ public class Match {
 
     public Match(long id, String team, String opponent, String competition, long kickoff, boolean manual, int homeScore, int awayScore) {
         this(id,team,opponent,competition,kickoff,manual,homeScore,awayScore,
-                "",team,opponent,"","","");
+                "",team,opponent,"","","","");
     }
 
     public Match(long id, String team, String opponent, String competition, long kickoff, boolean manual,
                  int homeScore, int awayScore, String fixtureId, String homeTeam, String awayTeam,
                  String homeTeamId, String awayTeamId, String country) {
+        this(id,team,opponent,competition,kickoff,manual,homeScore,awayScore,fixtureId,homeTeam,awayTeam,homeTeamId,awayTeamId,country,"");
+    }
+
+    public Match(long id, String team, String opponent, String competition, long kickoff, boolean manual,
+                 int homeScore, int awayScore, String fixtureId, String homeTeam, String awayTeam,
+                 String homeTeamId, String awayTeamId, String country, String status) {
         this.id = id; this.team = ApiClient.displayTeamName(clean(team)); this.opponent = ApiClient.displayTeamName(clean(opponent));
         this.competition = ApiClient.displayCompetitionName(clean(competition)); this.kickoff = kickoff; this.manual = manual;
         this.homeScore=homeScore;this.awayScore=awayScore;
         this.fixtureId=clean(fixtureId);this.homeTeam=ApiClient.displayTeamName(clean(homeTeam));this.awayTeam=ApiClient.displayTeamName(clean(awayTeam));
-        this.homeTeamId=clean(homeTeamId);this.awayTeamId=clean(awayTeamId);this.country=clean(country);
+        this.homeTeamId=clean(homeTeamId);this.awayTeamId=clean(awayTeamId);this.country=clean(country);this.status=clean(status);
     }
 
     public boolean hasScore(){return homeScore>=0&&awayScore>=0;}
@@ -45,7 +52,7 @@ public class Match {
                 .put("competition", competition).put("kickoff", kickoff).put("manual", manual)
                 .put("homeScore",homeScore).put("awayScore",awayScore)
                 .put("fixtureId",fixtureId).put("homeTeam",homeTeam).put("awayTeam",awayTeam)
-                .put("homeTeamId",homeTeamId).put("awayTeamId",awayTeamId).put("country",country);
+                .put("homeTeamId",homeTeamId).put("awayTeamId",awayTeamId).put("country",country).put("status",status);
     }
 
     static Match fromJson(JSONObject j) throws JSONException {
@@ -54,7 +61,7 @@ public class Match {
                 j.getLong("kickoff"),manual,j.optInt("homeScore",-1),j.optInt("awayScore",-1),
                 j.optString("fixtureId",""),
                 j.optString("homeTeam",team),j.optString("awayTeam",opponent),
-                j.optString("homeTeamId"),j.optString("awayTeamId"),j.optString("country"));
+                j.optString("homeTeamId"),j.optString("awayTeamId"),j.optString("country"),j.optString("status"));
     }
 
     String local(){return homeTeam.isEmpty()?team:homeTeam;}
