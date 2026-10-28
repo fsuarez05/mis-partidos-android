@@ -216,8 +216,11 @@ public class AppStore {
             // real es estable incluso si GOAL devuelve un nombre traducido en
             // una tarjeta y en inglés en la otra.
             String key=TeamIdentity.fixtureKey(m.fixtureId,m.kickoff,m.local(),m.visitante());
-            Match old=unique.get(key);if(old==null)unique.put(key,m);else unique.put(key,new Match(Math.min(old.id,m.id),old.local(),old.visitante(),old.competition,old.kickoff,false,-1,-1,
-                    old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country,old.status));
+            Match old=unique.get(key);if(old==null)unique.put(key,m);else{
+                Match merged=MatchDataPolicy.merge(m,old);
+                unique.put(key,new Match(Math.min(old.id,m.id),old.team,old.opponent,old.competition,old.kickoff,false,
+                        merged.homeScore,merged.awayScore,old.fixtureId,old.local(),old.visitante(),old.homeTeamId,old.awayTeamId,old.country,merged.status));
+            }
         }
         r.addAll(unique.values());
         Collections.sort(r,(a,b)->Long.compare(a.kickoff,b.kickoff));return r;

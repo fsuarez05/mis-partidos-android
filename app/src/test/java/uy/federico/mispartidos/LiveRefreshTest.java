@@ -76,22 +76,28 @@ public class LiveRefreshTest {
         assertFalse(LiveRefreshPolicy.isUsableFixtureResponse(error));
     }
 
-    @Test public void failedRequestDoesNotBypassFiveMinuteStartInterval(){
-        assertFalse(LiveRefreshPolicy.shouldStart(NOW+4*60_000,NOW,true,true,false,true));
-        assertTrue(LiveRefreshPolicy.shouldStart(NOW+5*60_000,NOW,true,true,false,true));
+    @Test public void failedRequestDoesNotBypassOneMinuteStartInterval(){
+        assertFalse(LiveRefreshPolicy.shouldStart(NOW+59_000,NOW,true,true,false,true));
+        assertTrue(LiveRefreshPolicy.shouldStart(NOW+60_000,NOW,true,true,false,true));
     }
 
     @Test public void simultaneousRequestIsBlocked(){
         assertFalse(LiveRefreshPolicy.shouldStart(NOW+LiveRefreshPolicy.INTERVAL_MS,NOW,true,true,true,true));
     }
 
-    @Test public void requestsRespectFiveMinuteMinimumBetweenStarts(){
+    @Test public void requestsRespectSixtySecondMinimumBetweenStarts(){
+        assertEquals(60_000L,LiveRefreshPolicy.INTERVAL_MS);
         assertFalse(LiveRefreshPolicy.shouldStart(NOW+LiveRefreshPolicy.INTERVAL_MS-1,NOW,true,true,false,true));
         assertTrue(LiveRefreshPolicy.shouldStart(NOW+LiveRefreshPolicy.INTERVAL_MS,NOW,true,true,false,true));
     }
 
     @Test public void backgroundStateNeverStartsPolling(){
         assertFalse(LiveRefreshPolicy.shouldStart(NOW+LiveRefreshPolicy.INTERVAL_MS,NOW,false,true,false,true));
+    }
+
+    @Test public void newsScreenNeverStartsPolling(){
+        boolean mainScreenInForeground=false;
+        assertFalse(LiveRefreshPolicy.shouldStart(NOW+LiveRefreshPolicy.INTERVAL_MS,NOW,mainScreenInForeground,true,false,true));
     }
 
     @Test public void noLiveFixturesMeansNoPeriodicRequest(){

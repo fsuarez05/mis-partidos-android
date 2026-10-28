@@ -5,7 +5,7 @@ import java.util.Collection;
 
 /** Small deterministic rules shared by the foreground refresher and its tests. */
 final class LiveRefreshPolicy {
-    static final long INTERVAL_MS = 5L * 60L * 1000L;
+    static final long INTERVAL_MS = 60L * 1000L;
 
     private LiveRefreshPolicy() {}
 

@@ -136,7 +136,7 @@ assert.equal(route.ok,true);
 assert.equal(routedArgs[1],true);
 assert.equal(routedArgs[2],false);
 
-// Live polling uses an isolated four-minute shared cache; normal sync keeps
+// Live polling uses an isolated 50-second shared cache; normal sync keeps
 // its existing 15-minute cache.
 context.PropertiesService = { getScriptProperties() { return { getProperty(name) { return name === 'GOAL_API_KEY' ? 'mock-goal-key' : 'mock-access-token'; } }; } };
 let goalCalls = 0;
@@ -156,7 +156,7 @@ assert.equal(goalCacheTtls[0].ttl,900,'la sincronización normal conserva la cac
 goalRoute({liveRefresh:'true'});
 goalRoute({liveRefresh:'true'});
 assert.equal(goalCalls,2,'los sondeos comparten su propia respuesta GOAL');
-assert.equal(goalCacheTtls[2].ttl,240,'la caché del sondeo es inferior al intervalo de cinco minutos');
+assert.equal(goalCacheTtls[2].ttl,50,'la caché del sondeo queda por debajo del intervalo de un minuto');
 assert.equal(goalCacheTtls[2].liveRefresh,true);
 
 console.log('OK: 15 escenarios simulados (emisión, caché, actualización, límites, rutas HTTP y cadencia GOAL)');

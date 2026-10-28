@@ -69,7 +69,8 @@ class ApiClient {
         new Thread(()->{
             try{
                 Map<Long,Match> favorites=new ConcurrentHashMap<>();
-                Map<Long,Match> previousFavorites=toMap(store.apiFavoriteMatches());
+                List<Match> savedFavorites=store.apiFavoriteMatches(),savedToday=store.apiTodayMatches(),savedResults=store.recentResults();
+                Map<Long,Match> previousFavorites=toMap(savedFavorites);
                 List<String> failures=Collections.synchronizedList(new ArrayList<>()),reasons=Collections.synchronizedList(new ArrayList<>());
                 List<Match> today=new ArrayList<>(),allToday=new ArrayList<>();
                 final List<Match> recentResults=Collections.synchronizedList(new ArrayList<>());
@@ -115,11 +116,28 @@ class ApiClient {
                 today=reconcileTodayFavorites(store,today,favorites);
                 List<Match> favoriteList=new ArrayList<>(favorites.values());
                 favoriteList.sort((a,b)->Long.compare(a.kickoff,b.kickoff));
-                // Conservar resultados recientes válidos si la consulta diaria vino incompleta.
-                long recentCutoff=System.currentTimeMillis()-48L*60L*60L*1000L;
-                for(Match old:store.recentResults())if(old.kickoff>=recentCutoff&&old.kickoff<=System.currentTimeMillis()
-                        &&(old.homeScore>=0&&old.awayScore>=0||FixtureStatusPolicy.FINISHED.equals(old.status)))recentResults.add(old);
-                List<Match> uniqueRecentResults=dedupeByFixture(recentResults);uniqueRecentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
+                long now=System.currentTimeMillis(),horizon=now+AppStore.UPCOMING_HORIZON_MS;
+                List<Match> savedFixtures=new ArrayList<>(savedFavorites);savedFixtures.addAll(savedToday);
+                favoriteList=mergeFavoriteRows(favoriteList,carryForward(store,savedFavorites,now,horizon));
+                List<Match> todayFallback=new ArrayList<>();
+                for(Match old:savedToday)if(old.kickoff>=now-7_200_000L&&old.kickoff<=horizon
+                        &&!FixtureStatusPolicy.FINISHED.equals(old.status)
+                        &&old.kickoff+AppStore.MATCH_DURATION_MS>now
+                        &&!FixtureStatusPolicy.POSTPONED.equals(old.status)&&!store.isSelectedFavorite(old)
+                        &&competitionSelected(old.competition,old.country,clubCompetitions,nationalCompetitions))todayFallback.add(old);
+                today=MatchDataPolicy.preserveMissing(today,todayFallback);
+                favoriteList=MatchDataPolicy.enrich(favoriteList,savedFixtures);
+                today=MatchDataPolicy.enrich(today,savedFixtures);
+
+                // Un resultado previamente guardado permanece aunque GOAL omita el
+                // fixture o devuelva el estado final sin marcador.
+                List<Match> resultFallback=new ArrayList<>(savedResults);
+                long recentCutoff=now-48L*60L*60L*1000L;
+                for(Match old:savedFixtures)if(old.kickoff>=recentCutoff&&old.kickoff<=now&&old.hasScore()
+                        &&(FixtureStatusPolicy.FINISHED.equals(old.status)||old.kickoff+AppStore.MATCH_DURATION_MS<=now))
+                    resultFallback.add(copyMatch(old,old.homeScore,old.awayScore,FixtureStatusPolicy.FINISHED));
+                List<Match> uniqueRecentResults=MatchDataPolicy.preserveMissing(recentResults,resultFallback);
+                uniqueRecentResults=dedupeByFixture(uniqueRecentResults);uniqueRecentResults.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
                 store.saveApiMatches(favoriteList,today,uniqueRecentResults);
                 if(failures.isEmpty())store.saveSyncPendingDetails("");
                 else{
@@ -164,7 +182,9 @@ class ApiClient {
     private static List<Match> liveCandidates(AppStore store){
         Map<String,Match> candidates=new LinkedHashMap<>();
         for(Match match:store.upcoming())if(!match.manual&&AppStore.isInProgress(match))candidates.put(fixtureKey(match),match);
-        for(Match match:store.todayByCompetitions())if(!match.manual&&AppStore.isInProgress(match))candidates.put(fixtureKey(match),match);
+        for(Match match:store.todayByCompetitions())if(!match.manual&&AppStore.isInProgress(match)){
+            String key=fixtureKey(match);Match old=candidates.get(key);candidates.put(key,old==null?match:MatchDataPolicy.merge(match,old));
+        }
         candidates.remove("");return new ArrayList<>(candidates.values());
     }
 
@@ -183,7 +203,7 @@ class ApiClient {
             if(FixtureStatusPolicy.POSTPONED.equals(status)){postponed.add(key);continue;}
             Match refreshed=copyMatch(old,score==null?old.homeScore:score[0],score==null?old.awayScore:score[1],status);
             if(FixtureStatusPolicy.FINISHED.equals(status)){
-                completed.put(key,copyMatch(refreshed,score==null?-1:score[0],score==null?-1:score[1],FixtureStatusPolicy.FINISHED));
+                completed.put(key,copyMatch(refreshed,refreshed.homeScore,refreshed.awayScore,FixtureStatusPolicy.FINISHED));
             }else updates.put(key,refreshed);
         }
         List<Match> favorites=updateStored(store.apiFavoriteMatches(),updates,completed,postponed);
@@ -194,6 +214,8 @@ class ApiClient {
             for(int i=recent.size()-1;i>=0;i--)if(completedKey.equals(fixtureKey(recent.get(i))))recent.remove(i);
             recent.add(copyMatch(result,result.homeScore,result.awayScore,FixtureStatusPolicy.FINISHED));
         }
+        List<Match> savedFallback=new ArrayList<>(store.recentResults());
+        recent=MatchDataPolicy.preserveMissing(recent,savedFallback);
         recent=dedupeByFixture(recent);recent.sort((a,b)->Long.compare(b.kickoff,a.kickoff));
         store.saveLiveMatches(favorites,today,recent);
     }
@@ -216,7 +238,23 @@ class ApiClient {
     }
 
     private static List<Match> dedupeByFixture(List<Match> matches){
-        Map<String,Match> unique=new LinkedHashMap<>();for(Match match:matches){String key=fixtureKey(match);if(key.isEmpty())key=String.valueOf(match.id);Match old=unique.get(key);if(old==null||(!old.hasScore()&&match.hasScore()))unique.put(key,match);}return new ArrayList<>(unique.values());
+        return MatchDataPolicy.dedupeLatest(matches);
+    }
+
+    private static List<Match> carryForward(AppStore store,List<Match> saved,long now,long horizon){
+        List<Match> result=new ArrayList<>();for(Match match:saved){
+            if(match.manual||match.kickoff<now-7_200_000L||match.kickoff>horizon
+                    ||FixtureStatusPolicy.FINISHED.equals(match.status)||match.kickoff+AppStore.MATCH_DURATION_MS<=now
+                    ||FixtureStatusPolicy.POSTPONED.equals(match.status)||!store.isSelectedFavorite(match))continue;
+            result.add(match);
+        }return result;
+    }
+
+    private static List<Match> mergeFavoriteRows(List<Match> latest,List<Match> previous){
+        Map<Long,Match> unique=new LinkedHashMap<>();
+        if(previous!=null)for(Match match:previous)unique.put(match.id,match);
+        if(latest!=null)for(Match match:latest){Match old=unique.get(match.id);unique.put(match.id,MatchDataPolicy.merge(match,old));}
+        List<Match> result=new ArrayList<>(unique.values());result.sort((a,b)->Long.compare(a.kickoff,b.kickoff));return result;
     }
 
     private static void loadTeamSafe(AppStore store,String team,boolean national,Map<Long,Match> favorites,Map<Long,Match> previous,List<Match> recentResults,List<String> failures,List<String> reasons,AtomicBoolean quotaReached){

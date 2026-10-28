@@ -182,7 +182,7 @@ function doGet(e) {
         ? fetchPagedFixtures_(
             request.path,
             Number(request.query.limit),
-            String(params.liveRefresh || '').toLowerCase() === 'true' ? 240 : request.cacheSeconds,
+            String(params.liveRefresh || '').toLowerCase() === 'true' ? 50 : request.cacheSeconds,
             String(params.liveRefresh || '').toLowerCase() === 'true'
           )
 
