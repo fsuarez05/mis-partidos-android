@@ -116,7 +116,7 @@ final class NewsRepository {
     }
 
     private List<NewsItem> fetch(TeamQuery team) throws Exception {
-        String query=queryFor(team)+" -femenino -femenina -women -womens -femeni -sub19 -sub17 -juvenil";
+        String query=queryFor(team)+" -femenino -femenina -women -womens -femeni -sub15 -sub16 -sub17 -sub18 -sub19 -sub20 -sub21 -sub23 -juvenil -basquet -baloncesto -basketball -futsal";
         String address="https://news.google.com/rss/search?q="+Uri.encode(query+" when:7d")+"&hl=es-419&gl=UY&ceid=UY:es-419";
         HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
         connection.setConnectTimeout(10000);connection.setReadTimeout(12000);connection.setInstanceFollowRedirects(true);
@@ -222,6 +222,8 @@ final class NewsRepository {
     }
 
     private boolean excludedNews(String title,String source){
+        // El filtro se aplica al RSS y también a noticias ya almacenadas en caché.
+        if(NewsFilterPolicy.isOffTopic(title,source))return true;
         String n=normalize(title);
         String src=normalize(source);
         if(n.contains("entradas")||n.contains("comprar boletos")||n.contains("comprar tickets")||n.contains("ticket prices")||n.contains("buy tickets")||n.contains("abonos")||n.contains("powerchair")||n.contains("basquet")||n.contains("baloncesto")||n.contains("basketball")||n.contains("futbol sala")||n.contains("futsal")||n.contains("liga uruguaya de basquet")||n.contains("union atletica")||n.contains("femenin")||n.contains("women")||n.contains("womens")||
