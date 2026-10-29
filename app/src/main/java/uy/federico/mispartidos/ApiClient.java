@@ -531,7 +531,7 @@ class ApiClient {
             else if(n.equals("league a"))shown="Liga A";
             translated.add(shown);
         }
-        return android.text.TextUtils.join(" · ",translated);
+        return String.join(" · ",translated);
     }
 
     private static long favoriteMatchId(long fixtureId,String team){
