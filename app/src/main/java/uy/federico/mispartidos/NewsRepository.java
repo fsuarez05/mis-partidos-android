@@ -240,15 +240,9 @@ final class NewsRepository {
     }
 
     private boolean sameStory(NewsItem first,NewsItem second){
-        String a=normalize(first.title),b=normalize(second.title);
-        if(a.equals(b))return true;
-        if(Math.abs(first.publishedAt-second.publishedAt)>48L*60L*60L*1000L)return false;
-        Set<String> wordsA=new HashSet<>(),wordsB=new HashSet<>();
-        for(String word:a.split(" "))if(word.length()>3)wordsA.add(word);
-        for(String word:b.split(" "))if(word.length()>3)wordsB.add(word);
-        if(wordsA.size()<5||wordsB.size()<5)return false;
-        int shared=0;for(String word:wordsA)if(wordsB.contains(word))shared++;
-        return shared>=5&&shared*1.0/Math.max(wordsA.size(),wordsB.size())>=0.8;
+        return NewsDedupPolicy.sameStory(
+            first.title,first.link,first.publishedAt,
+            second.title,second.link,second.publishedAt);
     }
 
     private List<NewsItem> dedupe(List<NewsItem> values){
