@@ -77,5 +77,51 @@ public class NewsTeamPolicyTest {
     @Test public void indiaNationalWorldCup(){yes("India",true,"India prepara su convocatoria para el Mundial");}
     @Test public void indiaSubstringNotAName(){no("India",true,"El técnico indica que habrá más cambios");}
     @Test public void nationalNameRegistry(){assertTrue(NewsTeamPolicy.isNationalName("Uruguay"));assertFalse(NewsTeamPolicy.isNationalName("Nacional"));}
+    @Test public void cacheInterMilanOnlyInter(){
+        assertEquals("Inter",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Inter Milan venció al Torino en Serie A","Inter | Milan")));
+    }
+    @Test public void cacheDerbyRetainsBothMilanClubs(){
+        assertEquals("Inter|Milan",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Inter Milan derrotó 2-0 al AC Milan","Inter | Milan")));
+    }
+    @Test public void cacheEnglishLiverpoolNotUruguayan(){
+        assertEquals("Liverpool",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Liverpool venció a Chelsea en Anfield","Liverpool (Uruguay) | Liverpool")));
+    }
+    @Test public void cacheUruguayanLiverpoolNotEnglish(){
+        assertEquals("Liverpool (Uruguay)",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Liverpool de Montevideo venció a Danubio","Liverpool (Uruguay) | Liverpool")));
+    }
+    @Test public void cacheUruguayArgentinaInternationalMatch(){
+        assertEquals("Uruguay|Argentina",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Uruguay ganó a Argentina en las Eliminatorias","Uruguay | Argentina")));
+    }
+    @Test public void cacheNationalClubNotUruguaySelection(){
+        assertEquals("Nacional",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Nacional venció a Peñarol por el Clausura","Nacional | Uruguay")));
+    }
+    @Test public void cacheSelectionNotNationalClub(){
+        assertEquals("Uruguay",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "La selección de Uruguay anuncia convocados al Mundial","Nacional | Uruguay")));
+    }
+    @Test public void cachePeñarolNacionalDerbyBoth(){
+        assertEquals("Peñarol|Nacional",String.join("|",NewsTeamPolicy.verifiedTeams(
+                "Peñarol ganó el clásico ante Nacional","Peñarol | Nacional")));
+    }
+    @Test public void cacheBarcelonaSportingEcuadorExcluded(){
+        assertTrue(NewsTeamPolicy.verifiedTeams(
+                "Barcelona SC goleó al Emelec en Ecuador","Barcelona").isEmpty());
+    }
+    @Test public void cacheEmptyTeams(){
+        assertTrue(NewsTeamPolicy.verifiedTeams("Peñarol ganó 3-1",null).isEmpty());
+    }
+    @Test public void cacheDuplicateTeamLabelsDeduplicated(){
+        assertEquals(1,NewsTeamPolicy.verifiedTeams("Peñarol ganó 3-1","Peñarol | Peñarol").size());
+    }
+    @Test public void cacheUnrelatedArticleCannotKeepFavoriteLabels(){
+        assertTrue(NewsTeamPolicy.verifiedTeams(
+                "Juventus confirma fichaje de delantero","PSG | Uruguay | Manchester City").isEmpty());
+    }
     @Test public void emptyHeadlineRejected(){no("Liverpool",false,"");}
 }
