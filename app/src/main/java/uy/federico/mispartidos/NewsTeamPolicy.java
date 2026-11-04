@@ -3,6 +3,7 @@ package uy.federico.mispartidos;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -23,6 +24,17 @@ final class NewsTeamPolicy {
     };
 
     private NewsTeamPolicy() { }
+
+    static LinkedHashSet<String> verifiedTeams(String title,String combined) {
+        LinkedHashSet<String> validated=new LinkedHashSet<>();
+        if(combined==null || combined.isEmpty())return validated;
+        for(String candidate:combined.split(" \\| ")){
+            String name=candidate.trim();
+            if(!name.isEmpty() && matches(name,isNationalName(name),title))
+                validated.add(name);
+        }
+        return validated;
+    }
 
     static boolean isNationalName(String team) {
         return NATIONAL_NAMES.contains(team);
