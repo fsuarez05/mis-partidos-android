@@ -131,12 +131,7 @@ final class NewsRepository {
     // Revalidar la relación entre titular y equipo también al leer caché:
     // una nota del Inter de Milán no debe quedar etiquetada como AC Milan.
     private NewsItem withVerifiedTeams(NewsItem item){
-        LinkedHashSet<String> names=new LinkedHashSet<>();
-        for(String team:item.teams.split(" \\| ")){
-            String name=team.trim();
-            if(!name.isEmpty() && NewsTeamPolicy.matches(name,
-                    NewsTeamPolicy.isNationalName(name),item.title))names.add(name);
-        }
+        LinkedHashSet<String> names=NewsTeamPolicy.verifiedTeams(item.title,item.teams);
         if(names.isEmpty())return null;
         String primary=names.contains(item.team)?item.team:names.iterator().next();
         return new NewsItem(item.title,item.source,item.link,primary,
