@@ -13,7 +13,7 @@ final class NewsRelevancePolicy {
             "\\b(?:futbol|football|fc|liga|ligue|premier|serie a|champions|europa league|" +
             "libertadores|sudamericana|clasico|derbi|mundial|eliminatorias|seleccion|" +
             "partido|encuentro|goles?|penales|marcador|victoria|derrota|empate|empato|" +
-            "gano|ganaron|vence|vencio|derroto|clasifico|avanza|avanzo|juega|enfrenta|" +
+            "gano|ganaron|vence|vencio|derroto|goleo|golea|goleada|remonta|remonto|clasifico|avanza|avanzo|juega|enfrenta|debut|" +
             "fichaje|ficha|ficho|refuerzo|traspaso|transferencia|mercado de pases|" +
             "contrato|renovacion|lesion|lesionado|sancion|expulsion|suspendido|" +
             "convocados?|convocatoria|entrenador|tecnico|dt|titular|once inicial|" +
