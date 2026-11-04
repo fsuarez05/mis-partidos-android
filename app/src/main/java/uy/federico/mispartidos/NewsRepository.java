@@ -128,7 +128,7 @@ final class NewsRepository {
             XmlPullParser parser=Xml.newPullParser();parser.setInput(input,"UTF-8");
             boolean inItem=false;String title="",link="",source="",date="";
             int event=parser.getEventType();
-            while(event!=XmlPullParser.END_DOCUMENT&&result.size()<MAX_PER_TEAM){
+            while(event!=XmlPullParser.END_DOCUMENT){
                 if(event==XmlPullParser.START_TAG){
                     String tag=parser.getName();
                     if("item".equals(tag)){inItem=true;title="";link="";source="";date="";}
@@ -138,11 +138,21 @@ final class NewsRepository {
                     }
                 }else if(event==XmlPullParser.END_TAG&&"item".equals(parser.getName())){
                     inItem=false;long published=parseDate(date);
-                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published) && !historicalHeadline(title) && !excludedNews(title,source))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
+                    if(published>0 && published<=System.currentTimeMillis()+60L*60L*1000L && published>=System.currentTimeMillis()-MAX_AGE_MS && isRelevant(team,title,source) && !expiredPreview(title,published) && !historicalHeadline(title) && !excludedNews(title,source) && !NewsRelevancePolicy.clearlyPeripheral(title))result.add(new NewsItem(cleanTitle(title,source),source,link,team.name,published));
                 }
                 event=parser.next();
             }
         }finally{connection.disconnect();}
+        // Google News RSS llega por publicación. Elegir los artículos con contenido
+        // deportivo más útil antes de limitar a 12 (sin otra solicitud de red).
+        final long rankedAt=System.currentTimeMillis();
+        result.sort((a,b)->{
+            int relevance=Integer.compare(
+                NewsRelevancePolicy.rank(b.title,b.source,b.publishedAt,rankedAt),
+                NewsRelevancePolicy.rank(a.title,a.source,a.publishedAt,rankedAt));
+            return relevance!=0?relevance:Long.compare(b.publishedAt,a.publishedAt);
+        });
+        if(result.size()>MAX_PER_TEAM)return new ArrayList<>(result.subList(0,MAX_PER_TEAM));
         return result;
     }
 
@@ -214,13 +224,6 @@ final class NewsRepository {
         return false;
     }
 
-    private int priority(NewsItem item){
-        String n=normalize(item.title);int score=0;
-        if(n.contains("fichaje")||n.contains("traspaso")||n.contains("lesion")||n.contains("sancion")||n.contains("renovacion")||n.contains("convocados")||n.contains("entrenador")||n.contains("tecnico")||n.contains("declaraciones"))score+=3;
-        if(n.contains("donde ver")||n.contains("como ver")||n.contains("a que hora")||n.contains("posibles alineaciones")||n.contains("probables alineaciones")||n.contains("en vivo")||n.contains("pronostico")||n.contains("apuestas"))score-=3;
-        return score;
-    }
-
     private boolean excludedNews(String title,String source){
         // El filtro se aplica al RSS y también a noticias ya almacenadas en caché.
         if(NewsFilterPolicy.isOffTopic(title,source))return true;
@@ -252,7 +255,7 @@ final class NewsRepository {
         for(NewsItem item:values){
             if(item.publishedAt<=0||item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS||
                 item.publishedAt>System.currentTimeMillis()+60L*60L*1000L||
-                expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||excludedNews(item.title,item.source)||
+                expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||excludedNews(item.title,item.source)||NewsRelevancePolicy.clearlyPeripheral(item.title)||
                 item.title.isEmpty()||item.link.isEmpty())continue;
             List<NewsItem> teamItems=byTeam.get(item.team);
             if(teamItems==null){teamItems=new ArrayList<>();byTeam.put(item.team,teamItems);}
@@ -268,6 +271,15 @@ final class NewsRepository {
                 List<NewsItem> existingTeam=byTeam.get(duplicate.team);
                 if(existingTeam!=null)existingTeam.set(existingTeam.indexOf(duplicate),updated);
             }else if(teamItems.size()<MAX_PER_TEAM){teamItems.add(item);globallySelected.add(item);}
+        }
+        final long rankedAt=System.currentTimeMillis();
+        for(List<NewsItem> articles:byTeam.values()){
+            articles.sort((a,b)->{
+                int relevance=Integer.compare(
+                    NewsRelevancePolicy.rank(b.title,b.source,b.publishedAt,rankedAt),
+                    NewsRelevancePolicy.rank(a.title,a.source,a.publishedAt,rankedAt));
+                return relevance!=0?relevance:Long.compare(b.publishedAt,a.publishedAt);
+            });
         }
         List<String> teams=new ArrayList<>(byTeam.keySet());
         Collections.sort(teams,String.CASE_INSENSITIVE_ORDER);
@@ -290,7 +302,7 @@ final class NewsRepository {
 
     private List<NewsItem> readCache(){
         List<NewsItem> result=new ArrayList<>();
-        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title) && !excludedNews(item.title,item.source))result.add(item);}}catch(Exception ignored){}
+        try{JSONArray array=new JSONArray(prefs.getString("news_cache","[]"));for(int i=0;i<array.length();i++){NewsItem item=NewsItem.fromJson(array.getJSONObject(i));if(item.publishedAt>0 && item.publishedAt>=System.currentTimeMillis()-MAX_AGE_MS && item.publishedAt<=System.currentTimeMillis()+60L*60L*1000L && !expiredPreview(item.title,item.publishedAt) && !historicalHeadline(item.title) && !excludedNews(item.title,item.source) && !NewsRelevancePolicy.clearlyPeripheral(item.title))result.add(item);}}catch(Exception ignored){}
         return dedupe(result);
     }
 
