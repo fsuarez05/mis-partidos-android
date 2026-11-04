@@ -66,14 +66,15 @@ final class NewsTeamPolicy {
                                 "gran parque central","parque central","tricolor","bolso",
                                 "decano","uruguay","montevideo","clasico uruguayo","liga auf",
                                 "copa auf","campeonato uruguayo",
-                                "penarol","danubio","defensor sporting");
+                                "penarol","danubio","defensor sporting")
+                        || NewsRelevancePolicy.footballContext(title);
             case "River Plate":
-                return (phrase(n,"river plate") || (word(n,"river") &&
-                        any(n,"gallardo","millonario","monumental","copa argentina"))) &&
+                return ((phrase(n,"river plate") && NewsRelevancePolicy.footballContext(title)) ||
+                        (word(n,"river") && any(n,"gallardo","millonario",
+                                "monumental","copa argentina"))) &&
                         !any(n,"river plate de montevideo","river plate uruguay",
                                 "river plate uruguayo","river plate de uruguay",
-                                "torneo clausura uruguayo","liga auf") &&
-                        NewsRelevancePolicy.footballContext(title);
+                                "torneo clausura uruguayo","liga auf");
             case "Racing Club":
                 return word(n,"racing") &&
                         !any(n,"racing de montevideo","racing club de montevideo",
@@ -165,7 +166,8 @@ final class NewsTeamPolicy {
         // aunque el titular no diga "selección".
         if(!any(n,"vencio","vence","gano","goleo","empato","empate",
                 "enfrenta","enfrentara","contra","ante","vs","versus","derroto",
-                "cayo","juega","jugaran","clasifico","elimino")) return false;
+                "cayo","juega","jugara","jugaran","disputan",
+                "definen","clasifico","elimino")) return false;
         for(String other:OTHER_COUNTRIES) {
             if(!other.equals(country) && phrase(n,other))return true;
         }
