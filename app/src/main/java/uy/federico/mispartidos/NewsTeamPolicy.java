@@ -40,7 +40,7 @@ final class NewsTeamPolicy {
                 return word(n,"liverpool") && !hasUruguayanLiverpoolContext(n) &&
                         (hasEnglishLiverpoolContext(n) || NewsRelevancePolicy.footballContext(title));
             case "Inter":
-                return word(n,"inter") &&
+                return (word(n,"inter") || word(n,"internazionale")) &&
                         !any(n,"inter miami","inter de miami","inter turku",
                                 "inter bogota","inter de palmira","inter porto alegre",
                                 "inter de porto alegre","inter club d escaldes",
@@ -64,9 +64,11 @@ final class NewsTeamPolicy {
                                 "seleccion nacional") &&
                         any(n,"club nacional","nacional de football","nacional de montevideo",
                                 "gran parque central","parque central","tricolor","bolso",
-                                "decano","uruguay","montevideo","clasico uruguayo","liga auf");
+                                "decano","uruguay","montevideo","clasico uruguayo","liga auf",
+                                "penarol","danubio","defensor sporting");
             case "River Plate":
-                return phrase(n,"river plate") &&
+                return (phrase(n,"river plate") || (word(n,"river") &&
+                        any(n,"gallardo","millonario","monumental","copa argentina"))) &&
                         !any(n,"river plate de montevideo","river plate uruguay",
                                 "river plate uruguayo","river plate de uruguay",
                                 "torneo clausura uruguayo","liga auf") &&
@@ -96,7 +98,7 @@ final class NewsTeamPolicy {
                         any(n,"porto alegre","brasileirao","beira rio","colorado",
                                 "inter de porto","gremio","brasil");
             case "Barcelona":
-                return word(n,"barcelona") &&
+                return (word(n,"barcelona") || word(n,"barca")) &&
                         !any(n,"barcelona sc","barcelona sporting club",
                                 "barcelona de guayaquil","barcelona ecuador",
                                 "barcelona ecuatoriano") &&
@@ -131,9 +133,10 @@ final class NewsTeamPolicy {
 
     private static boolean hasUruguayanLiverpoolContext(String n) {
         return any(n,"liverpool de montevideo","liverpool montevideo",
-                "liverpool uruguay","liverpool uruguayo","liverpool futbol club",
+                "liverpool uruguay","liverpool del uruguay","liverpool uruguayo","liverpool futbol club",
                 "belvedere","negriazul","liga auf","campeonato uruguayo",
-                "torneo clausura","torneo apertura","primera division uruguaya");
+                "torneo clausura","torneo apertura","torneo intermedio",
+                "penarol","danubio","defensor sporting","primera division uruguaya");
     }
 
     private static boolean hasEnglishLiverpoolContext(String n) {
@@ -151,7 +154,8 @@ final class NewsTeamPolicy {
         if(any(n,"seleccion de "+country,"seleccion "+country,
                 "seleccion nacional de "+country,"equipo nacional de "+country,
                 "nacional de "+country,"national team",
-                "copa del mundo","world cup","nations league",
+                "copa del mundo","world cup","mundial","copa america","eurocopa",
+                "nations league",
                 "eliminatorias","clasificatorias","amistoso internacional",
                 "fecha fifa","convocados","convocatoria") &&
                 NewsRelevancePolicy.footballContext(n)) return true;
