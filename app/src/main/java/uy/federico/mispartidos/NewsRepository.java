@@ -94,7 +94,7 @@ final class NewsRepository {
             TeamQuery team=pending.get(i);
             try{
                 List<NewsItem> items=tasks.get(i).get(25,TimeUnit.SECONDS);
-                merged.removeIf(item->item.teams.contains(team.name) && item.team.equals(team.name));
+                merged=withoutTeam(merged,team.name);
                 merged.addAll(items);
                 editor.putLong(stampKey(team),System.currentTimeMillis());
                 successes++;
@@ -109,6 +109,38 @@ final class NewsRepository {
         String message=failures==0?"Noticias actualizadas · "+successes+" equipos":(
             successes==0?"No se pudo actualizar. Se muestran noticias guardadas.":"Actualización parcial: "+successes+" equipos actualizados, "+failures+" pendientes.");
         post(callback,merged,successes>0,message);
+    }
+
+    // Al actualizar un favorito, no conservar etiquetas antiguas de ese equipo
+    // en noticias compartidas con otros favoritos.
+    private List<NewsItem> withoutTeam(List<NewsItem> existing,String refreshed){
+        List<NewsItem> kept=new ArrayList<>();
+        for(NewsItem item:existing){
+            LinkedHashSet<String> names=new LinkedHashSet<>();
+            for(String name:item.teams.split(" \\| ")){
+                if(!name.equals(refreshed) && !name.isEmpty())names.add(name);
+            }
+            if(names.isEmpty())continue;
+            String primary=names.contains(item.team)?item.team:names.iterator().next();
+            kept.add(new NewsItem(item.title,item.source,item.link,primary,
+                    item.publishedAt,android.text.TextUtils.join(" | ",names)));
+        }
+        return kept;
+    }
+
+    // Revalidar la relación entre titular y equipo también al leer caché:
+    // una nota del Inter de Milán no debe quedar etiquetada como AC Milan.
+    private NewsItem withVerifiedTeams(NewsItem item){
+        LinkedHashSet<String> names=new LinkedHashSet<>();
+        for(String team:item.teams.split(" \\| ")){
+            String name=team.trim();
+            if(!name.isEmpty() && NewsTeamPolicy.matches(name,
+                    NewsTeamPolicy.isNationalName(name),item.title))names.add(name);
+        }
+        if(names.isEmpty())return null;
+        String primary=names.contains(item.team)?item.team:names.iterator().next();
+        return new NewsItem(item.title,item.source,item.link,primary,
+                item.publishedAt,android.text.TextUtils.join(" | ",names));
     }
 
     private void post(Callback callback,List<NewsItem> items,boolean updated,String message){
@@ -171,14 +203,7 @@ final class NewsRepository {
     }
 
     private boolean isRelevant(TeamQuery team,String title,String source){
-        String value=normalize(title);
-        if(team.national)return value.contains(normalize(team.name))&&(value.contains("seleccion")||value.contains("futbol")||value.contains("mundial")||value.contains("eliminatoria")||value.contains("amistoso"))&&!value.contains("powerchair")&&!value.contains("baloncesto")&&!value.contains("basket")&&!value.contains("futsal");
-        if("Liverpool (Uruguay)".equals(team.name))return value.contains("liverpool")&&(value.contains("uruguay")||value.contains("montevideo")||value.contains("belvedere"))&&!value.contains("premier league");
-        if("Liverpool".equals(team.name))return value.contains("liverpool")&&(value.contains("premier")||value.contains("anfield")||value.contains("england")||value.contains("ingles"));
-        if("Inter".equals(team.name))return value.contains("inter")&&(value.contains("milan")||value.contains("serie a")||value.contains("italia"));
-        if("Milan".equals(team.name))return (value.contains("ac milan")||value.contains("milan"))&&(value.contains("serie a")||value.contains("italia")||value.contains("champions"));
-        if("Nacional".equals(team.name))return value.contains("nacional")&&(value.contains("uruguay")||value.contains("tricolor")||value.contains("parque central"));
-        return value.contains(normalize(team.name));
+        return NewsTeamPolicy.matches(team.name,team.national,cleanTitle(title,source));
     }
 
     private String cleanTitle(String title,String source){
@@ -252,7 +277,9 @@ final class NewsRepository {
         Collections.sort(values,(a,b)->Long.compare(b.publishedAt,a.publishedAt));
         LinkedHashMap<String,List<NewsItem>> byTeam=new LinkedHashMap<>();
         List<NewsItem> globallySelected=new ArrayList<>();
-        for(NewsItem item:values){
+        for(NewsItem original:values){
+            NewsItem item=withVerifiedTeams(original);
+            if(item==null)continue;
             if(item.publishedAt<=0||item.publishedAt<System.currentTimeMillis()-MAX_AGE_MS||
                 item.publishedAt>System.currentTimeMillis()+60L*60L*1000L||
                 expiredPreview(item.title,item.publishedAt)||historicalHeadline(item.title)||excludedNews(item.title,item.source)||NewsRelevancePolicy.clearlyPeripheral(item.title)||
