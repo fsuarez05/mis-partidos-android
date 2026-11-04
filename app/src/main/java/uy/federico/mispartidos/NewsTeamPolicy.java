@@ -65,6 +65,7 @@ final class NewsTeamPolicy {
                         any(n,"club nacional","nacional de football","nacional de montevideo",
                                 "gran parque central","parque central","tricolor","bolso",
                                 "decano","uruguay","montevideo","clasico uruguayo","liga auf",
+                                "copa auf","campeonato uruguayo",
                                 "penarol","danubio","defensor sporting");
             case "River Plate":
                 return (phrase(n,"river plate") || (word(n,"river") &&
@@ -100,9 +101,9 @@ final class NewsTeamPolicy {
             case "Barcelona":
                 return (word(n,"barcelona") || word(n,"barca")) &&
                         !any(n,"barcelona sc","barcelona sporting club",
-                                "barcelona de guayaquil","barcelona ecuador",
+                                "barcelona de guayaquil","barcelona ecuador","barcelona de ecuador",
                                 "barcelona ecuatoriano") &&
-                        NewsRelevancePolicy.footballContext(title);
+                        (word(n,"barca") || NewsRelevancePolicy.footballContext(title));
             case "Arsenal":
                 return word(n,"arsenal") &&
                         !any(n,"arsenal de sarandi","arsenal sarandi","arsenal argentina") &&
@@ -133,10 +134,11 @@ final class NewsTeamPolicy {
 
     private static boolean hasUruguayanLiverpoolContext(String n) {
         return any(n,"liverpool de montevideo","liverpool montevideo",
-                "liverpool uruguay","liverpool del uruguay","liverpool uruguayo","liverpool futbol club",
+                "liverpool uruguay","liverpool del uruguay","liverpool fc de uruguay","liverpool uruguayo","liverpool futbol club",
                 "belvedere","negriazul","liga auf","campeonato uruguayo",
                 "torneo clausura","torneo apertura","torneo intermedio",
-                "penarol","danubio","defensor sporting","primera division uruguaya");
+                "penarol","nacional","danubio","defensor sporting","boston river",
+                "cerro largo","montevideo city torque","primera division uruguaya");
     }
 
     private static boolean hasEnglishLiverpoolContext(String n) {
