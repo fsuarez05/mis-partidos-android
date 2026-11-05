@@ -21,6 +21,14 @@ public class NewsFilterPolicyTest {
     @Test public void bettingPublisher(){excluded("AC Milan vs Bologna: Serie A","Apuestas Ganadas");}
     @Test public void femaleFootball(){excluded("Chelsea femenino ganó el clásico","BBC");}
     @Test public void futsal(){excluded("Barcelona se coronó campeón en fútbol sala","Marca");}
+    @Test public void exhibitionLegendsMatchExcluded(){excluded("América vs Atlético de Madrid: la lista completa de jugadores para el partido de leyendas","Infobae");}
+    @Test public void legendaryTeamsFriendlyExcluded(){excluded("Peñarol y Nacional disputarán un amistoso de leyendas","Ovación");}
+    @Test public void veteransMatchExcluded(){excluded("El clásico de veteranos se disputará en el Centenario","Ovación");}
+    @Test public void legendsExhibitionWithLeadingKeyword(){excluded("Leyendas del Real Madrid jugarán un partido amistoso ante el Barcelona","Marca");}
+    @Test public void formerPlayersExhibitionExcluded(){excluded("Atlético organiza un partido homenaje a exfutbolistas","AS");}
+    @Test public void historicLegendNewsPreserved(){included("La leyenda de Peñarol recuerda el título de 1987","Ovación");}
+    @Test public void professionalFarewellMatchPreserved(){included("Suárez jugó su último partido oficial con Uruguay","El País");}
+    @Test public void legitimateFirstTeamMatchPreserved(){included("Atlético de Madrid venció al América en amistoso de pretemporada","AS");}
     @Test public void seniorPenarolMatch(){included("Peñarol derrotó 2-1 a Nacional en el clásico","Ovación");}
     @Test public void seniorManchesterCityMatch(){included("Manchester City avanzó en los penales ante Brighton","ABC Color");}
     @Test public void seniorTransfer(){included("Chelsea ficha al delantero por 80 millones de euros","Diario AS");}
