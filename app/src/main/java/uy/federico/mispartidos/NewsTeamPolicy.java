@@ -69,16 +69,15 @@ final class NewsTeamPolicy {
                                 NewsRelevancePolicy.footballContext(title));
             }
             case "Nacional":
-                return word(n,"nacional") &&
-                        !any(n,"atletico nacional","nacional de medellin",
+                if (!word(n,"nacional") ||
+                        any(n,"atletico nacional","nacional de medellin",
                                 "nacional potosi","nacional de paraguay",
                                 "nacional de asuncion","nacional de colombia",
-                                "seleccion nacional") &&
-                        any(n,"club nacional","nacional de football","nacional de montevideo",
-                                "gran parque central","parque central","tricolor","bolso",
-                                "decano","uruguay","montevideo","clasico uruguayo","liga auf",
-                                "copa auf","campeonato uruguayo",
-                                "penarol","danubio","defensor sporting")
+                                "seleccion nacional")) return false;
+                return any(n,"club nacional","nacional de football","nacional de montevideo",
+                        "gran parque central","parque central","tricolor","bolso",
+                        "decano","uruguay","montevideo","clasico uruguayo","liga auf",
+                        "copa auf","campeonato uruguayo","penarol","danubio","defensor sporting")
                         || NewsRelevancePolicy.footballContext(title);
             case "River Plate":
                 return ((phrase(n,"river plate") && NewsRelevancePolicy.footballContext(title)) ||

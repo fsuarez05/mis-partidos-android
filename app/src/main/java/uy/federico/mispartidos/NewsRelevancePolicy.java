@@ -96,9 +96,11 @@ final class NewsRelevancePolicy {
 
     static boolean englishLiverpoolMatch(String title) {
         String n=normalize(title);
-        return word(n,"liverpool") && (n.contains("anfield") ||
-                n.contains("premier") || n.contains("ingles") ||
-                n.contains("england") || footballContext(title));
+        return word(n,"liverpool") &&
+                NewsTeamPolicy.matches("Liverpool",false,title) &&
+                (n.contains("anfield") || n.contains("premier") ||
+                        n.contains("ingles") || n.contains("england") ||
+                        footballContext(title));
     }
 
     private static boolean word(String text,String value) {

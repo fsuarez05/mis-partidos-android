@@ -55,6 +55,10 @@ final class NewsDedupPolicy {
         // Never treat two different reported scores as the same article/event.
         Set<String> scoresA = scores(titleA), scoresB = scores(titleB);
         if (!scoresA.isEmpty() && !scoresB.isEmpty() && !scoresA.equals(scoresB)) return false;
+        // Similar headlines can mention the same two countries while announcing
+        // different national-team squads. Do not let generic word overlap merge them.
+        String squadA = callUpSubject(a), squadB = callUpSubject(b);
+        if (!squadA.isEmpty() && !squadB.isEmpty() && !squadA.equals(squadB)) return false;
         if (sameCallUpEvent(a,b,Math.abs(timeA-timeB))) return true;
 
         Set<String> wordsA = importantWords(a), wordsB = importantWords(b);
