@@ -16,6 +16,7 @@ final class NewsFilterPolicy {
     private static final Pattern BIG_SCORE = Pattern.compile("\\b(?:[4-9][0-9]|[1-9][0-9]{2})\\s+(?:a\\s+)?(?:[4-9][0-9]|[1-9][0-9]{2})\\b");
     private static final Pattern BETTING_PREVIEW = Pattern.compile("\\b(?:pronosticos?|predicciones|cuotas|odds|mejores apuestas|consejos de apuestas|apuestas deportivas)\\b");
     private static final Pattern BETTING_SOURCE = Pattern.compile("\\b(?:apuestas ganadas|bet365|forebet|sports betting|pronosticos de futbol)\\b");
+    private static final Pattern LEGENDS_MATCH = Pattern.compile("\\b(?:partido|encuentro|amistoso|torneo|juego|duelo|clasico)\\b.{0,100}\\b(?:leyendas|veteranos|glorias|exjugadores|ex futbolistas|exfutbolistas)\\b|\\b(?:leyendas|veteranos|glorias|exjugadores|ex futbolistas|exfutbolistas)\\b.{0,100}\\b(?:partido|encuentro|amistoso|torneo|duelo|clasico|jugaran|disputaran)\\b");
     private static final Pattern WOMEN = Pattern.compile("\\b(?:femenina|femenino|femeninas|femeninos|women|womens|femeni|liga f)\\b");
 
     private NewsFilterPolicy() { }
@@ -25,6 +26,7 @@ final class NewsFilterPolicy {
         String publisher = normalize(source);
         if (headline.isEmpty()) return true;
         if (AGE_GROUP.matcher(headline).find()) return true;
+        if (LEGENDS_MATCH.matcher(headline).find()) return true;
         if (YOUTH.matcher(headline).find()) return true;
         if (OTHER_SPORT.matcher(headline).find()) return true;
         if (WOMEN.matcher(headline).find()) return true;
