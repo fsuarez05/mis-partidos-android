@@ -55,7 +55,7 @@ final class NewsDedupPolicy {
         // Never treat two different reported scores as the same article/event.
         Set<String> scoresA = scores(titleA), scoresB = scores(titleB);
         if (!scoresA.isEmpty() && !scoresB.isEmpty() && !scoresA.equals(scoresB)) return false;
-        if (sameCallUpEvent(a,b)) return true;
+        if (sameCallUpEvent(a,b,Math.abs(timeA-timeB))) return true;
 
         Set<String> wordsA = importantWords(a), wordsB = importantWords(b);
         int shorter = Math.min(wordsA.size(), wordsB.size());
@@ -69,10 +69,26 @@ final class NewsDedupPolicy {
                 || (shared >= 4 && shared * 1.0 / shorter >= 0.75 && shared * 1.0 / longer >= 0.60);
     }
 
-    private static boolean sameCallUpEvent(String a, String b) {
+    private static boolean sameCallUpEvent(String a, String b, long elapsedMs) {
         if (!CALL_UP.matcher(a).find() || !CALL_UP.matcher(b).find()) return false;
         Set<String> participantsA=participants(a), participantsB=participants(b);
-        return participantsA.size()>=2 && participantsA.equals(participantsB);
+        if(participantsA.size()>=2 && participantsA.equals(participantsB))return true;
+        // Same national-team squad announcement can be reported with or without
+        // naming its opponent. Use a narrow six-hour window and require subset
+        // participants; never merge articles naming conflicting opponents.
+        Set<String> smaller=participantsA.size()<=participantsB.size()?participantsA:participantsB;
+        Set<String> larger=participantsA.size()<=participantsB.size()?participantsB:participantsA;
+        return elapsedMs<=6L*60L*60L*1000L && smaller.size()==1 && larger.size()==2
+                && larger.containsAll(smaller) && isNationalParticipant(smaller.iterator().next());
+    }
+
+    private static boolean isNationalParticipant(String name) {
+        return "argentina".equals(name) || "uruguay".equals(name) || "brasil".equals(name)
+                || "chile".equals(name) || "colombia".equals(name) || "paraguay".equals(name)
+                || "peru".equals(name) || "ecuador".equals(name) || "bolivia".equals(name)
+                || "francia".equals(name) || "espana".equals(name) || "inglaterra".equals(name)
+                || "alemania".equals(name) || "portugal".equals(name) || "italia".equals(name)
+                || "noruega".equals(name) || "japon".equals(name) || "india".equals(name);
     }
 
     private static Set<String> participants(String title) {
