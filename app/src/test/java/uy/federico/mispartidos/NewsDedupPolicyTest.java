@@ -9,6 +9,39 @@ public class NewsDedupPolicyTest {
         return NewsDedupPolicy.sameStory(a,"",NOW,b,"",NOW+60_000L);
     }
 
+    @Test public void argentineSquadTwoOutletsSameEvent(){
+        assertTrue(same("La selección de Argentina reveló la lista de convocados para enfrentar a Uruguay con 10 campeones del mundo",
+                "Los futbolistas convocados por Argentina para el amistoso de noviembre frente a Uruguay"));
+    }
+    @Test public void argentineSquadWithoutOpponentSameWindow(){
+        assertTrue(same("La selección Argentina presenta su primera convocatoria tras la retirada de Lionel Messi",
+                "La selección de Argentina reveló la lista de convocados para enfrentar a Uruguay con 10 campeones del mundo"));
+    }
+    @Test public void argentineSquadAndUruguayanSquadNotSameEvent(){
+        assertFalse(same("La selección de Argentina reveló convocados para enfrentar a Uruguay",
+                "La selección de Uruguay confirmó convocados para enfrentar a Argentina"));
+    }
+    @Test public void squadsForDifferentOpponentsDoNotMerge(){
+        assertFalse(same("La selección de Argentina reveló convocados para enfrentar a Uruguay",
+                "La selección de Argentina confirmó convocados para enfrentar a Brasil"));
+    }
+    @Test public void differentArgentinaEventsWithNoSharedOpponentStayDistinct(){
+        assertFalse(same("La selección de Argentina anunció la lista de convocados para el amistoso con Uruguay",
+                "La selección de Argentina confirmó el nuevo entrenador tras el Mundial"));
+    }
+    @Test public void argentinaSquadUnspecifiedOpponentOutsideSixHoursNotSame(){
+        assertFalse(NewsDedupPolicy.sameStory(
+                "La selección Argentina presenta su primera convocatoria tras el retiro de Messi","",NOW,
+                "La selección de Argentina reveló convocados para enfrentar a Uruguay","",NOW+7L*60L*60L*1000L));
+    }
+    @Test public void argentinaNewsAboutUnrelatedTransferNotSquad(){
+        assertFalse(same("La selección de Argentina reveló convocados para enfrentar a Uruguay",
+                "Argentina presenta un nuevo fichaje del club local de Uruguay"));
+    }
+    @Test public void sameOpponentDifferentScoreStillNotDuplicate(){
+        assertFalse(same("Argentina ganó 2-0 a Uruguay y anunció la convocatoria",
+                "Argentina ganó 3-0 a Uruguay y anunció la convocatoria"));
+    }
     @Test public void exactlySameTitleIsDuplicate(){assertTrue(same("Peñarol ganó el clásico 2-1","Peñarol ganó el clásico 2-1"));}
     @Test public void differentAccentsAndPunctuationAreDuplicate(){assertTrue(same("PSG ganó 3-0 en París: resumen y mejores jugadas","PSG gano 3-0 en Paris - resumen y mejores jugadas"));}
     @Test public void identicalArticleAcrossTrackingLinksIsDuplicate(){assertTrue(NewsDedupPolicy.sameStory("Milan prepara el derbi","https://example.com/deporte/noticia?utm_source=google",NOW,"Milan se prepara para enfrentar al Inter","https://example.com/deporte/noticia?utm_medium=rss",NOW));}
