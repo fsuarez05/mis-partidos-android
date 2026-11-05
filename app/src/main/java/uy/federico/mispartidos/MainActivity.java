@@ -135,7 +135,7 @@ public class MainActivity extends Activity {
         if(!todayPlaying.isEmpty()){addSectionTitle("🔴 En juego · competiciones elegidas");list.addView(todayTable(todayPlaying));}
         addSectionTitle("Partidos de hoy · competiciones elegidas");
         if(todayFuture.isEmpty()){TextView empty=text("No quedan partidos pendientes en las competiciones elegidas.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(18));list.addView(empty);}else list.addView(todayTable(todayFuture));
-        List<Match>results=store.recentResults();addSectionTitle("Resultados recientes");if(results.isEmpty()){TextView empty=text("No hay resultados recientes.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
+        List<Match>results=store.recentResults();addSectionTitle("Último resultado por equipo favorito");if(results.isEmpty()){TextView empty=text("No hay resultados recientes.",16,Color.DKGRAY,false);empty.setPadding(dp(14),dp(12),dp(14),dp(30));list.addView(empty);}else list.addView(resultsTable(results));
         if(mainScroll!=null)mainScroll.post(()->mainScroll.scrollTo(0,previousScroll));
     }
 
