@@ -112,8 +112,8 @@ public class MainActivity extends Activity {
         setContentView(root); refresh();
     }
 
-    private String statusText(String connection){return summaryText()+"\n⚽ Datos GOAL API · "+connection+"\n"+lastLiveRefreshText()+(syncStatus.isEmpty()?"":"\n"+syncStatus);}
-    private String lastLiveRefreshText(){long value=store==null?0:store.lastLiveRefresh();return value==0?"Resultados en vivo: sin actualización todavía":"Última actualización de resultados: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
+    private String statusText(String connection){String live=lastLiveRefreshText();return summaryText()+"\n⚽ Datos GOAL API · "+connection+(live.isEmpty()?"":"\n"+live)+(syncStatus.isEmpty()?"":"\n"+syncStatus);}
+    private String lastLiveRefreshText(){long value=store==null?0:store.lastLiveRefresh();return value<=0||System.currentTimeMillis()-value>6L*60L*60L*1000L?"":"Marcadores en vivo · última consulta: "+localDateFormat("dd/MM HH:mm").format(new Date(value));}
     private void updateStatusLabel(){if(statusLabel!=null)statusLabel.setText(statusText(ApiClient.configured(this)?(syncStatus.isEmpty()?lastSyncText():"Conexión GOAL API lista"):"Conexión no configurada"));}
 
     private void refresh() {
