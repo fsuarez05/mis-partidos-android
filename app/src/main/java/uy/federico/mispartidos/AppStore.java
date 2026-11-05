@@ -129,9 +129,26 @@ public class AppStore {
     private String matchesJson(List<Match>matches){JSONArray a=new JSONArray();try{for(Match m:matches)a.put(m.toJson());}catch(Exception ignored){}return a.toString();}
     List<Match> apiFavoriteMatches(){return seniorMatches(readMatches("api_favorite_matches"));}
     List<Match> apiTodayMatches(){return seniorMatches(readMatches("api_today_matches"));}
-    List<Match> recentResults(){return seniorMatches(readMatches("api_recent_results"));}
-    void saveApiMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_sync",System.currentTimeMillis()).apply();}
-    void saveLiveMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(results)).putLong("api_last_live_refresh",System.currentTimeMillis()).apply();}
+    List<Match> recentResults(){return keepLastResultPerFavorite(seniorMatches(readMatches("api_recent_results")));}
+
+    private List<Match> keepLastResultPerFavorite(List<Match> matches) {
+        Set<String> clubs=selectedTeams(), national=selectedNationalTeams();
+        Map<String,String> ids=selectedFavoriteIds();
+        return RecentResultsPolicy.latestPerFavorite(matches, match->{
+            Set<String> favorites=new HashSet<>();
+            for(String club:clubs) {
+                if(isSelectedFavorite(match,java.util.Collections.singleton(club),
+                        java.util.Collections.emptySet(),ids))favorites.add("club:"+club);
+            }
+            for(String team:national) {
+                if(isSelectedFavorite(match,java.util.Collections.singleton(team),
+                        java.util.Collections.singleton(team),ids))favorites.add("national:"+team);
+            }
+            return favorites;
+        },System.currentTimeMillis());
+    }
+    void saveApiMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(keepLastResultPerFavorite(results))).putLong("api_last_sync",System.currentTimeMillis()).apply();}
+    void saveLiveMatches(List<Match>favorites,List<Match>today,List<Match>results){prefs.edit().putString("api_favorite_matches",matchesJson(favorites)).putString("api_today_matches",matchesJson(today)).putString("api_recent_results",matchesJson(keepLastResultPerFavorite(results))).putLong("api_last_live_refresh",System.currentTimeMillis()).apply();}
     long lastLiveRefresh(){return prefs.getLong("api_last_live_refresh",0L);}
     long lastLiveRefreshStarted(){return prefs.getLong("api_last_live_refresh_started",0L);}
     void saveLiveRefreshStarted(long value){prefs.edit().putLong("api_last_live_refresh_started",value).apply();}
