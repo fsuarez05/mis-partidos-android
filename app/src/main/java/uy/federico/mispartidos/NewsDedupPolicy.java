@@ -26,6 +26,17 @@ final class NewsDedupPolicy {
     private static final Pattern SCORE = Pattern.compile("\\b\\d{1,2}\\s*[-:]\\s*\\d{1,2}\\b");
     private static final Pattern TRACKING = Pattern.compile("^(?:utm_[a-z0-9_]+|fbclid|gclid|igshid|ref|source)$");
     private static final Pattern TOKEN = Pattern.compile("[a-z0-9]+");
+    private static final Pattern CALL_UP = Pattern.compile("\\b(?:convocados?|convocatoria|nomina|citados|lista de jugadores|lista de futbolistas)\\b");
+    // Pair of teams/countries in a specific call-up announcement (not just any
+    // two articles about one club). Conservative: require the same two sides.
+    private static final String[] EVENT_TEAMS = {
+        "argentina", "uruguay", "brasil", "chile", "colombia", "paraguay",
+        "peru", "ecuador", "bolivia", "francia", "espana", "inglaterra",
+        "alemania", "portugal", "italia", "noruega", "japon", "india",
+        "penarol", "nacional", "barcelona", "real madrid", "chelsea",
+        "liverpool", "manchester city", "manchester united", "juventus",
+        "milan", "inter", "psg", "atletico de madrid", "arsenal"
+    };
     private static final Pattern OPPONENT = Pattern.compile("\\b(?:ante|contra|versus|vs|frente a|frente al|al)\\s+(?:el\\s+|la\\s+|los\\s+)?([a-z0-9]+)\\b");
 
     private NewsDedupPolicy() { }
@@ -44,6 +55,7 @@ final class NewsDedupPolicy {
         // Never treat two different reported scores as the same article/event.
         Set<String> scoresA = scores(titleA), scoresB = scores(titleB);
         if (!scoresA.isEmpty() && !scoresB.isEmpty() && !scoresA.equals(scoresB)) return false;
+        if (sameCallUpEvent(a,b)) return true;
 
         Set<String> wordsA = importantWords(a), wordsB = importantWords(b);
         int shorter = Math.min(wordsA.size(), wordsB.size());
@@ -55,6 +67,21 @@ final class NewsDedupPolicy {
         // coverage prevent merging merely because the same club is named.
         return (shared >= 5 && shared * 1.0 / shorter >= 0.58 && shared * 1.0 / longer >= 0.45)
                 || (shared >= 4 && shared * 1.0 / shorter >= 0.75 && shared * 1.0 / longer >= 0.60);
+    }
+
+    private static boolean sameCallUpEvent(String a, String b) {
+        if (!CALL_UP.matcher(a).find() || !CALL_UP.matcher(b).find()) return false;
+        Set<String> participantsA=participants(a), participantsB=participants(b);
+        return participantsA.size()>=2 && participantsA.equals(participantsB);
+    }
+
+    private static Set<String> participants(String title) {
+        Set<String> result=new HashSet<>();
+        String padded=" "+title+" ";
+        for (String name:EVENT_TEAMS) {
+            if (padded.contains(" "+name+" ")) result.add(name);
+        }
+        return result;
     }
 
     private static String opponent(String normalized) {
