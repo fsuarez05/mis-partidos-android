@@ -26,6 +26,8 @@ final class RecentResultsPolicy {
         if(candidates!=null)for(Match match:candidates) {
             if(match==null || !match.hasScore() || match.kickoff>now ||
                     match.kickoff<now-HISTORY_WINDOW_MS)continue;
+            if(!FixtureStatusPolicy.FINISHED.equals(match.status) &&
+                    match.kickoff+AppStore.MATCH_DURATION_MS>now)continue;
             sorted.add(match);
         }
         // The newest completed fixture wins for each favorite. Prefer a result
