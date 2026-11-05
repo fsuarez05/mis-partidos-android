@@ -71,6 +71,8 @@ final class NewsDedupPolicy {
 
     private static boolean sameCallUpEvent(String a, String b, long elapsedMs) {
         if (!CALL_UP.matcher(a).find() || !CALL_UP.matcher(b).find()) return false;
+        String subjectA=callUpSubject(a), subjectB=callUpSubject(b);
+        if(subjectA.isEmpty() || !subjectA.equals(subjectB))return false;
         Set<String> participantsA=participants(a), participantsB=participants(b);
         if(participantsA.size()>=2 && participantsA.equals(participantsB))return true;
         // Same national-team squad announcement can be reported with or without
@@ -80,6 +82,23 @@ final class NewsDedupPolicy {
         Set<String> larger=participantsA.size()<=participantsB.size()?participantsB:participantsA;
         return elapsedMs<=6L*60L*60L*1000L && smaller.size()==1 && larger.size()==2
                 && larger.containsAll(smaller) && isNationalParticipant(smaller.iterator().next());
+    }
+
+    private static String callUpSubject(String title) {
+        String padded=" "+title+" ";
+        for(String name:EVENT_TEAMS) {
+            if(!isNationalParticipant(name))continue;
+            if(padded.contains(" seleccion de "+name+" ") ||
+                    padded.contains(" seleccion "+name+" ") ||
+                    padded.contains(" convocados por "+name+" ") ||
+                    padded.contains(" convocatoria de "+name+" ") ||
+                    padded.contains(" "+name+" revelo ") ||
+                    padded.contains(" "+name+" presento ") ||
+                    padded.contains(" "+name+" confirmo ") ||
+                    padded.contains(" "+name+" anuncia ") ||
+                    padded.contains(" "+name+" convoca "))return name;
+        }
+        return "";
     }
 
     private static boolean isNationalParticipant(String name) {
