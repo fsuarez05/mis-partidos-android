@@ -113,21 +113,23 @@ public class MatchInfoActivity extends Activity {
     }
     private String dateText(){SimpleDateFormat f=new SimpleDateFormat("EEEE d 'de' MMMM · HH:mm",new Locale("es","UY"));f.setTimeZone(java.util.TimeZone.getTimeZone("America/Montevideo"));String s=f.format(new Date(match.kickoff));return s.substring(0,1).toUpperCase(new Locale("es","UY"))+s.substring(1);}
 
-    private void render(MatchSummary s){content.removeAllViews();addHeader();showUpdateStatus(s);if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);addUpdated(s.updated);return;}if(s.fallback&&s.updateReason.isEmpty())addNotice(s.fallbackReason!=null&&!s.fallbackReason.trim().isEmpty()?s.fallbackReason+" Se muestra la información guardada.":"No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
+    private void render(MatchSummary s){content.removeAllViews();addHeader();showUpdateStatus(s);if(!s.found){TextView empty=text("Todavía no encontramos información suficiente sobre este partido.",17,Color.rgb(51,65,85),false);empty.setGravity(Gravity.CENTER);empty.setPadding(dp(8),dp(30),dp(8),dp(30));content.addView(empty);if(!finished)showBroadcastSection(s);addUpdated(s.updated);return;}if(s.fallback&&s.updateReason.isEmpty())addNotice(s.fallbackReason!=null&&!s.fallbackReason.trim().isEmpty()?s.fallbackReason+" Se muestra la información guardada.":"No se pudo actualizar la información. Se muestra la última información disponible.");else if(s.informationScore()<7)addNotice("La información disponible para este partido es limitada.");
         boolean started=System.currentTimeMillis()>=match.kickoff;
         if(started)addNotice("Estos datos corresponden a la previa del encuentro. Para consultar el resultado, los goles y el desarrollo actualizado, usá Google.");
         section(started?"Contexto previo al partido":"Contexto",valueOrFallback(s.context));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.home.name,match.local()),teamText(s.home));
         section((started?"Cómo llegaba ":"Cómo llega ")+nameOr(s.away.name,match.visitante()),teamText(s.away));
-        if(!finished){
-            String titulo=AppStore.isInProgress(match)?"📺 Dónde verlo ahora":"📺 Dónde verlo";
-            if(!s.broadcastText.trim().isEmpty())section(titulo,s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry)+(s.broadcastPreserved?"\n"+(s.broadcastReason.isEmpty()?"Se conserva una confirmación anterior.":s.broadcastReason):""));
-            else section(titulo,"Transmisión no confirmada para Uruguay.");
-        }
+        if(!finished)showBroadcastSection(s);
         if(!s.news.isEmpty()){StringBuilder b=new StringBuilder();for(String n:s.news)b.append("• ").append(n).append('\n');section(started?"Novedades consultadas":"Últimas novedades",trim(b));}
         if(s.absences.isEmpty())section(started?"Bajas reportadas antes del partido":"Bajas reportadas","No se encontraron bajas verificables en las fuentes consultadas. Esto no significa que ambos equipos tengan el plantel completo.");else{java.util.LinkedHashMap<String,java.util.ArrayList<MatchSummary.Absence>> grupos=new java.util.LinkedHashMap<>();for(MatchSummary.Absence a:s.absences){String equipo=a.team==null||a.team.trim().isEmpty()?"Equipo no especificado":a.team.trim();if(!grupos.containsKey(equipo))grupos.put(equipo,new java.util.ArrayList<>());grupos.get(equipo).add(a);}title(started?"Bajas reportadas antes del partido":"Bajas reportadas");for(java.util.Map.Entry<String,java.util.ArrayList<MatchSummary.Absence>> grupo:grupos.entrySet()){TextView encabezado=text(grupo.getKey(),16,Color.rgb(15,23,42),true);encabezado.setPadding(0,dp(12),0,dp(4));content.addView(encabezado);StringBuilder lista=new StringBuilder();for(MatchSummary.Absence a:grupo.getValue()){lista.append("• ").append(a.player==null||a.player.trim().isEmpty()?"Jugador sin especificar":a.player);if(a.reason!=null&&!a.reason.trim().isEmpty())lista.append(" — ").append(a.reason);lista.append('\n');}TextView detalle=text(trim(lista),16,Color.rgb(51,65,85),false);detalle.setLineSpacing(0,1.15f);detalle.setPadding(dp(12),0,0,dp(8));content.addView(detalle);}}
         if(!s.sources.isEmpty()){title("Fuentes");for(MatchSummary.Source source:s.sources)addSource(source);}
         addUpdated(s.updated);
+    }
+    private void showBroadcastSection(MatchSummary s){
+        String titulo=AppStore.isInProgress(match)?"📺 Dónde verlo ahora":"📺 Dónde verlo";
+        if(s.broadcastConfirmed && !s.broadcastText.trim().isEmpty())
+            section(titulo,s.broadcastText+(s.broadcastCountry.trim().isEmpty()?"":"\nDisponibilidad: "+s.broadcastCountry)+(s.broadcastPreserved?"\n"+(s.broadcastReason.isEmpty()?"Se conserva una confirmación anterior.":s.broadcastReason):""));
+        else section(titulo,"Transmisión no confirmada para Uruguay.");
     }
     private void showUpdateStatus(MatchSummary s){
         if(s.updateStatus==null||s.updateStatus.isEmpty())return;
