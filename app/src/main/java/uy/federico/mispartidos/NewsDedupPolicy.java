@@ -70,6 +70,12 @@ final class NewsDedupPolicy {
                 && Math.abs(timeA-timeB)<=24L*60L*60L*1000L
                 && isResultReport(a) && isResultReport(b)) {
             Set<String> sidesA=participants(a), sidesB=participants(b);
+            Set<String> clubsA=new HashSet<>(sidesA), clubsB=new HashSet<>(sidesB);
+            clubsA.removeIf(NewsDedupPolicy::isNationalParticipant);
+            clubsB.removeIf(NewsDedupPolicy::isNationalParticipant);
+            // A country may be incidental ("líder de España") rather than
+            // a participant. Compare two named clubs before national context.
+            if (clubsA.size()>=2 && clubsA.equals(clubsB)) return true;
             if (sidesA.size()>=2 && sidesA.equals(sidesB)) return true;
         }
 
