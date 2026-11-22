@@ -444,23 +444,24 @@ class ApiClient {
                 boolean hasSelectedId=selectedId!=null&&!selectedId.isEmpty();
                 boolean home=hasSelectedId&&selectedId.equals(match.homeTeamId);
                 boolean away=hasSelectedId&&selectedId.equals(match.awayTeamId);
-                // Sólo recurrimos al nombre si aún no existe un ID resuelto, y en ese
-                // caso exigimos además el ámbito correcto para evitar homónimos.
-                if(!hasSelectedId){
+                // Si GOAL omite uno de los IDs del fixture, el ID guardado no
+                // permite descartar al favorito. Validamos nombre y ámbito como
+                // respaldo; con ambos IDs presentes nunca ignoramos un conflicto.
+                if(TeamIdentity.needsNameFallback(selectedId,match.homeTeamId,match.awayTeamId)){
                     boolean nameHome=TeamIdentity.sameName(team,match.team),nameAway=TeamIdentity.sameName(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
-                        home=international&&nameHome;away=international&&nameAway;
+                        home=home||(international&&nameHome);away=away||(international&&nameAway);
                     }else{
                         String expected=canonicalCountry(AppStore.countryForClub(team));
                         boolean rightCountry=expected.isEmpty()||expected.equals(canonicalCountry(match.country));
-                        home=rightCountry&&nameHome;away=rightCountry&&nameAway;
+                        home=home||(rightCountry&&nameHome);away=away||(rightCountry&&nameAway);
                     }
                 }
                 if(!home&&!away)continue;
                 String opponent=home?match.opponent:match.team;
                 Match favorite=new Match(favoriteMatchId(match.id,team),team,opponent,match.competition,match.kickoff,false,-1,-1,
-                        match.fixtureId,match.local(),match.visitante(),match.homeTeamId,match.awayTeamId,match.country);
+                        match.fixtureId,match.local(),match.visitante(),match.homeTeamId,match.awayTeamId,match.country,match.status);
                 removeFavoriteForTeam(favorites,team);favorites.put(favorite.id,favorite);promoted=true;
             }
             if(!promoted)remaining.add(match);
