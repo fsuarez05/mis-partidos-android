@@ -12,6 +12,20 @@ public class NewsTeamPolicyTest {
         assertFalse(team+": "+headline,NewsTeamPolicy.matches(team,national,headline));
     }
 
+    @Test public void penarolSanCarlosLigaMayorExcluded(){
+        no("Peñarol",false,"Liga Mayor (Fútbol): San Carlos y Peñarol ganaron.");
+        no("Peñarol",false,"Peñarol de San Carlos venció a Barrio Perlita en Maldonado");
+        no("Peñarol",false,"Peñarol ganó en la Liga Mayor de Maldonado");
+    }
+    @Test public void montevideoPenarolStillIncluded(){
+        yes("Peñarol",false,"Peñarol goleó 3-0 a Nacional por el Campeonato Uruguayo");
+        yes("Peñarol",false,"Peñarol clasificó a la Copa Libertadores");
+    }
+    @Test public void cachedSanCarlosArticleLosesIncorrectFavorite(){
+        assertTrue(NewsTeamPolicy.verifiedTeams(
+                "Liga Mayor (Fútbol): San Carlos y Peñarol ganaron.", "Peñarol").isEmpty());
+    }
+
     @Test public void englishLiverpoolPremier(){yes("Liverpool",false,"Liverpool goleó a Chelsea en la Premier League");}
     @Test public void englishLiverpoolSimpleMatch(){yes("Liverpool",false,"Liverpool ganó 2-0 a Chelsea");}
     @Test public void uruguayanLiverpoolExplicit(){yes("Liverpool (Uruguay)",false,"Liverpool de Montevideo venció a Peñarol");}

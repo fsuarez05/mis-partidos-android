@@ -35,7 +35,9 @@ final class NewsDedupPolicy {
         "alemania", "portugal", "italia", "noruega", "japon", "india",
         "penarol", "nacional", "barcelona", "real madrid", "chelsea",
         "liverpool", "manchester city", "manchester united", "juventus",
-        "milan", "inter", "psg", "atletico de madrid", "arsenal"
+        "milan", "inter", "psg", "atletico de madrid", "arsenal",
+        "villarreal", "getafe", "atletico madrid", "real sociedad",
+        "napoli", "atalanta", "boca juniors", "borussia dortmund"
     };
     private static final Pattern OPPONENT = Pattern.compile("\\b(?:ante|contra|versus|vs|frente a|frente al|al)\\s+(?:el\\s+|la\\s+|los\\s+)?([a-z0-9]+)\\b");
 
@@ -60,6 +62,22 @@ final class NewsDedupPolicy {
         String squadA = callUpSubject(a), squadB = callUpSubject(b);
         if (!squadA.isEmpty() && !squadB.isEmpty() && !squadA.equals(squadB)) return false;
         if (sameCallUpEvent(a,b,Math.abs(timeA-timeB))) return true;
+        // Reports about a scored fixture can have completely different verbs
+        // ("remontó" vs "dio vuelta"). Demand an identical result, the same
+        // two named sides, and a short publication window. Scores alone,
+        // generic club mentions and match previews never suffice.
+        if (!scoresA.isEmpty() && scoresA.equals(scoresB)
+                && Math.abs(timeA-timeB)<=24L*60L*60L*1000L
+                && isResultReport(a) && isResultReport(b)) {
+            Set<String> sidesA=participants(a), sidesB=participants(b);
+            Set<String> clubsA=new HashSet<>(sidesA), clubsB=new HashSet<>(sidesB);
+            clubsA.removeIf(NewsDedupPolicy::isNationalParticipant);
+            clubsB.removeIf(NewsDedupPolicy::isNationalParticipant);
+            // A country may be incidental ("líder de España") rather than
+            // a participant. Compare two named clubs before national context.
+            if (clubsA.size()>=2 && clubsA.equals(clubsB)) return true;
+            if (sidesA.size()>=2 && sidesA.equals(sidesB)) return true;
+        }
 
         Set<String> wordsA = importantWords(a), wordsB = importantWords(b);
         int shorter = Math.min(wordsA.size(), wordsB.size());
@@ -71,6 +89,11 @@ final class NewsDedupPolicy {
         // coverage prevent merging merely because the same club is named.
         return (shared >= 5 && shared * 1.0 / shorter >= 0.58 && shared * 1.0 / longer >= 0.45)
                 || (shared >= 4 && shared * 1.0 / shorter >= 0.75 && shared * 1.0 / longer >= 0.60);
+    }
+
+    private static boolean isResultReport(String title) {
+        return Pattern.compile("\\b(?:gano|ganaron|vencio|derroto|remonto|volteo|goleo|empato|empataron|triunfo|victoria|resultado|finalizo|termino|se impuso|dio vuelta)\\b")
+                .matcher(title).find();
     }
 
     private static boolean sameCallUpEvent(String a, String b, long elapsedMs) {
