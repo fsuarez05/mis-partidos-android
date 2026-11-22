@@ -3859,7 +3859,7 @@ function detectarTransmisionUruguay_(resultados, partido) {
       const normalizada = normalizarTextoComparacion_(frase);
       const normalizadaConEspacios = ' ' + normalizada + ' ';
       const localizacionUY = dominioUruguayo || /\buruguay\b|\buruguayo\b|\buru\b/.test(normalizada);
-      const hablaDeEmision = /donde ver|como ver|televisa|televisacion|transmision|ver en vivo|canal de tv|streaming|programacion|disponible/.test(normalizada);
+      const hablaDeEmision = /donde ver|como ver|televisa|televisacion|transmision|transmit|ver en vivo|canal de tv|streaming|programacion|disponible/.test(normalizada);
       const nombraProveedor = /espn|dsports|directv sports|vtv|tenfield|tnt sports|disney|dgo|auf tv|antel tv/.test(normalizada);
       function mencionaEquipo(nombre) {
         return obtenerVariantesNombreEquipo_(normalizarTextoComparacion_(nombre)).some(function(variant) {
