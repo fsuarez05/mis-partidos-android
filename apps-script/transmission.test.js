@@ -58,6 +58,30 @@ assert.equal(result.confirmada, true);
 assert.deepEqual(Array.from(result.canales), ['ESPN 2']);
 assert.deepEqual(Array.from(result.streaming), ['Disney+']);
 
+// The headline identifies both sides and a separate sentence identifies
+// Uruguay and the actual outlet. This layout is common in fixture guides.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega: dónde ver UEFA Nations League',
+    'Detalles del encuentro y horario. En Uruguay se transmite por ESPN 2 y Disney+.')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, true);
+assert.deepEqual(Array.from(result.canales), ['ESPN 2']);
+assert.deepEqual(Array.from(result.streaming), ['Disney+']);
+
+// Rights for the whole competition must not become a confirmed fixture.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega: dónde ver UEFA Nations League',
+    'La Nations League se transmite en Uruguay por ESPN y Disney+.')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, false);
+
+// Without an explicit country, do not infer Uruguay just from a .uy outlet.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega: guía Nations League',
+    'Se transmite por ESPN y Disney+.')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, false);
+
 // A provider mentioned only as a generic rightsholder must not be invented.
 result = context.detectarTransmisionUruguay_([
   source('Francia vs Noruega, Nations League', 'Los derechos de la Nations League en Uruguay incluyen ESPN. Francia y Noruega juegan mañana.')
