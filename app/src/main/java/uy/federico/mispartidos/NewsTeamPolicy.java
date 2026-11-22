@@ -45,6 +45,14 @@ final class NewsTeamPolicy {
         if(n.isEmpty() || name.isEmpty()) return false;
         if(national) return nationalMatch(name,n);
         switch(team) {
+            case "Peñarol":
+                // Liga Mayor de Maldonado incluye al club Peñarol de San Carlos.
+                // La coincidencia de nombre por sí sola no identifica al club
+                // profesional de Montevideo. Este filtro también valida caché.
+                return word(n,"penarol") &&
+                        !any(n,"penarol de san carlos","penarol san carlos",
+                                "liga mayor","liga mayor de maldonado",
+                                "liga mayor futbol","liga mayor futbol 11");
             case "Liverpool (Uruguay)":
                 return word(n,"liverpool") && hasUruguayanLiverpoolContext(n) &&
                         !hasEnglishLiverpoolContext(n);
