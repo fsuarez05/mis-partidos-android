@@ -49,6 +49,27 @@ result = context.detectarTransmisionUruguay_([
 assert.equal(result.confirmada, true);
 assert.deepEqual(Array.from(result.canales), ['ESPN 2']);
 
+// Nations League: source explicitly attributes the selected fixture to Uruguay.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega UEFA Nations League: dónde ver',
+    'Francia vs Noruega por UEFA Nations League: en Uruguay se transmite en vivo por ESPN 2 y Disney+.')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, true);
+assert.deepEqual(Array.from(result.canales), ['ESPN 2']);
+assert.deepEqual(Array.from(result.streaming), ['Disney+']);
+
+// A provider mentioned only as a generic rightsholder must not be invented.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega, Nations League', 'Los derechos de la Nations League en Uruguay incluyen ESPN. Francia y Noruega juegan mañana.')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, false);
+
+// Country-specific guide for Argentina is not a verified Uruguay broadcast.
+result = context.detectarTransmisionUruguay_([
+  source('Francia vs Noruega: cómo ver Nations League', 'Francia vs Noruega se transmite en Argentina por ESPN y Disney+.', 'https://www.espn.com.ar/')
+], match('Francia','Noruega','UEFA Nations League'));
+assert.equal(result.confirmada, false);
+
 // Una guía para otro país no confirma disponibilidad en Uruguay.
 result = context.detectarTransmisionUruguay_([
   source('Bayern Munich vs Arsenal: dónde ver', 'En Argentina se transmite por ESPN y Disney+.', 'https://www.espn.com.ar/futbol/')
@@ -159,4 +180,4 @@ assert.equal(goalCalls,2,'los sondeos comparten su propia respuesta GOAL');
 assert.equal(goalCacheTtls[2].ttl,50,'la caché del sondeo queda por debajo del intervalo de un minuto');
 assert.equal(goalCacheTtls[2].liveRefresh,true);
 
-console.log('OK: 15 escenarios simulados (emisión, caché, actualización, límites, rutas HTTP y cadencia GOAL)');
+console.log('OK: pruebas simuladas de emisión (incluye Nations League), caché, actualización, límites, rutas HTTP y cadencia GOAL (emisión, caché, actualización, límites, rutas HTTP y cadencia GOAL)');
