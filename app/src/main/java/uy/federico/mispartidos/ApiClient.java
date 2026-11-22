@@ -447,14 +447,17 @@ class ApiClient {
                 // Si GOAL omite uno de los IDs del fixture, el ID guardado no
                 // permite descartar al favorito. Validamos nombre y ámbito como
                 // respaldo; con ambos IDs presentes nunca ignoramos un conflicto.
-                if(TeamIdentity.needsNameFallback(selectedId,match.homeTeamId,match.awayTeamId)){
+                if(TeamIdentity.needsNameFallback(selectedId,match.homeTeamId,match.awayTeamId)
+                        || (!isNational && TeamIdentity.isUnambiguousDomesticClub(
+                                match,team,AppStore.countryForClub(team)))){
                     boolean nameHome=TeamIdentity.sameName(team,match.team),nameAway=TeamIdentity.sameName(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
                         home=home||(international&&nameHome);away=away||(international&&nameAway);
                     }else{
                         String expected=canonicalCountry(AppStore.countryForClub(team));
-                        boolean rightCountry=expected.isEmpty()||expected.equals(canonicalCountry(match.country));
+                        boolean rightCountry=expected.isEmpty()||expected.equals(canonicalCountry(match.country))
+                                ||TeamIdentity.isUnambiguousDomesticClub(match,team,AppStore.countryForClub(team));
                         home=home||(rightCountry&&nameHome);away=away||(rightCountry&&nameAway);
                     }
                 }

@@ -3,7 +3,7 @@ name: Generar APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev-chatgpt, 'fix/favorites-country-aliases-20261122']
+    branches: [main, dev-chatgpt, 'fix/favorites-fixture-league-20261122']
 
 jobs:
   build:
@@ -42,7 +42,7 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: MisPartidos-v0.9.47-release
+          name: MisPartidos-v0.9.48-release
           path: app/build/outputs/apk/release/app-release.apk
           retention-days: 7
           if-no-files-found: error

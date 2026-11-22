@@ -20,6 +20,27 @@ public class TeamIdentityTest {
         assertTrue(TeamIdentity.sameName("Inglaterra","England"));
     }
 
+    @Test public void getafeAtleticoLaLigaIsFavoriteDespiteSavedIdMismatch() {
+        Match match=new Match(1L,"Getafe","Atlético de Madrid","La Liga",1800000000000L,false,
+                -1,-1,"fixture-22","Getafe","Atlético de Madrid","getafe-id","atletico-new-id","Spain");
+        assertTrue(TeamIdentity.isUnambiguousDomesticClub(match,"Atlético de Madrid","España"));
+    }
+
+    @Test public void explicitDomesticLeagueCanReplaceMissingCountryButNotForeignCountry() {
+        Match missingCountry=new Match(2L,"Getafe","Atlético de Madrid","La Liga",1800000000000L,false);
+        assertTrue(TeamIdentity.isUnambiguousDomesticClub(missingCountry,"Atlético de Madrid","España"));
+        Match wrongCountry=new Match(3L,"Getafe","Atlético de Madrid","La Liga",1800000000000L,false,
+                -1,-1,"bad","Getafe","Atlético de Madrid","","","Argentina");
+        assertFalse(TeamIdentity.isUnambiguousDomesticClub(wrongCountry,"Atlético de Madrid","España"));
+    }
+
+    @Test public void namesAndUnambiguousCompetitionMustMatch() {
+        Match unrelated=new Match(4L,"Newcastle","Arsenal FC","Argentine Primera División",1800000000000L,false);
+        assertFalse(TeamIdentity.isUnambiguousDomesticClub(unrelated,"Arsenal","Inglaterra"));
+        Match europeanCup=new Match(5L,"Getafe","Atlético de Madrid","UEFA Europa League",1800000000000L,false);
+        assertFalse(TeamIdentity.isUnambiguousDomesticClub(europeanCup,"Atlético de Madrid","España"));
+    }
+
     @Test public void stableIdMatchesTranslatedAndAlternativeClubNames() {
         Map<String,String> ids=Collections.singletonMap("Atlético de Madrid","team-42");
         assertTrue(TeamIdentity.isFavorite("Atletico Madrid","Deportivo de La Coruña","team-42","team-99",
