@@ -2479,10 +2479,8 @@ function obtenerResumenPartido(datosPartido, forzarActualizacion, permitirExceso
         `${variantesBusquedaTransmision_(partido.local)} ` +
         `${variantesBusquedaTransmision_(partido.visitante)} ` +
         `${partido.competicion || ''} ${partido.fecha} ` +
-        `previa actualidad novedades cómo llegan ambos equipos lesiones bajas sanciones ` +
-        `Uruguay dónde ver en vivo Disney+ Premium ESPN ` +
-        `programación televisación streaming canal fecha horario ` +
-        `ESPN Uruguay Disney Plus Uruguay FútbolUy`,
+        `Uruguay dónde ver televisación transmisión en vivo ` +
+        `canal plataforma streaming programación TV horario`,
       topic: 'general',
       searchDepth: 'advanced',
       maxResults: 8
