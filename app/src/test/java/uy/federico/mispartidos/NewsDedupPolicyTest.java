@@ -9,6 +9,27 @@ public class NewsDedupPolicyTest {
         return NewsDedupPolicy.sameStory(a,"",NOW,b,"",NOW+60_000L);
     }
 
+    @Test public void sameBarcelonaVillarrealScoreDifferentWording(){
+        assertTrue(same("Barcelona remontó ante Villarreal y ganó 3-2 en La Liga",
+                "Barcelona volteó el partido a Villarreal 3-2 y es líder de España"));
+    }
+    @Test public void scoredFixturesWithDifferentOpponentsRemainDistinct(){
+        assertFalse(same("Barcelona ganó 3-2 ante Villarreal",
+                "Barcelona ganó 3-2 ante Getafe"));
+    }
+    @Test public void scoreAloneDoesNotMergeUnrelatedStories(){
+        assertFalse(same("Barcelona 3-2 Villarreal: posibles alineaciones",
+                "Barcelona ganó 3-2 ante Villarreal"));
+    }
+    @Test public void sameFixtureDifferentScoresRemainDistinct(){
+        assertFalse(same("Barcelona ganó 3-2 ante Villarreal",
+                "Barcelona ganó 2-1 ante Villarreal"));
+    }
+    @Test public void sameScoreNextDayBeyondWindowNotMerged(){
+        assertFalse(NewsDedupPolicy.sameStory("Barcelona ganó 3-2 ante Villarreal","",NOW,
+                "Barcelona remontó 3-2 ante Villarreal","",NOW+25L*60L*60L*1000L));
+    }
+
     @Test public void argentineSquadTwoOutletsSameEvent(){
         assertTrue(same("La selección de Argentina reveló la lista de convocados para enfrentar a Uruguay con 10 campeones del mundo",
                 "Los futbolistas convocados por Argentina para el amistoso de noviembre frente a Uruguay"));
