@@ -444,9 +444,10 @@ class ApiClient {
                 boolean hasSelectedId=selectedId!=null&&!selectedId.isEmpty();
                 boolean home=hasSelectedId&&selectedId.equals(match.homeTeamId);
                 boolean away=hasSelectedId&&selectedId.equals(match.awayTeamId);
-                // Sólo recurrimos al nombre si aún no existe un ID resuelto, y en ese
-                // caso exigimos además el ámbito correcto para evitar homónimos.
-                if(!hasSelectedId){
+                // Si GOAL omite uno de los IDs del fixture, el ID guardado no
+                // permite descartar al favorito. Validamos nombre y ámbito como
+                // respaldo; con ambos IDs presentes nunca ignoramos un conflicto.
+                if(!hasSelectedId || match.homeTeamId.isEmpty() || match.awayTeamId.isEmpty()){
                     boolean nameHome=TeamIdentity.sameName(team,match.team),nameAway=TeamIdentity.sameName(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
