@@ -204,7 +204,9 @@ public class AppStore {
             String id=ids.get(favorite);
             if(id!=null&&!id.isEmpty()){
                 if(id.equals(match.homeTeamId)||id.equals(match.awayTeamId))return true;
-                if(!match.homeTeamId.isEmpty()&&!match.awayTeamId.isEmpty())continue;
+                if(!match.homeTeamId.isEmpty()&&!match.awayTeamId.isEmpty()
+                        &&!( !national.contains(favorite) && TeamIdentity.isUnambiguousDomesticClub(
+                                match,favorite,countryForClub(favorite))))continue;
             }
             if(!TeamIdentity.sameName(favorite,match.local())&&!TeamIdentity.sameName(favorite,match.visitante()))continue;
             if(national.contains(favorite)){
@@ -214,7 +216,9 @@ public class AppStore {
                         ||competition.contains("world cup")||competition.contains("world qualifier")||competition.contains("copa america")||competition.contains("asian cup")||competition.contains("africa cup")||competition.contains("gold cup")
                         ||competition.contains("eliminatoria")||competition.contains("friendl")||competition.contains("amistoso"))return true;
             }else{
-                String expected=countryForClub(favorite);if(expected==null||TeamIdentity.sameName(expected,match.country))return true;
+                String expected=countryForClub(favorite);
+                if(expected==null||TeamIdentity.sameName(expected,match.country)
+                        ||TeamIdentity.isUnambiguousDomesticClub(match,favorite,expected))return true;
             }
         }
         return false;
