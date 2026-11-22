@@ -3852,8 +3852,17 @@ function detectarTransmisionUruguay_(resultados, partido) {
     const mencionaUruguay = /\buruguay\b|\buruguayo\b|\buru\b/.test(texto);
     if (!dominioUruguayo && !mencionaUruguay) return;
 
-    // El canal debe aparecer atribuido en una frase que hable de emisión y
-    // disponibilidad uruguaya, no sólo en el texto general de derechos de liga.
+    // Una nota puede identificar el fixture en el título y detallar su
+    // televisación en otra oración. Se admite esa separación sólo si la
+    // oración confirma Uruguay explícitamente y no describe derechos generales.
+    function mencionaEquipoEn(textoNormalizado, nombre) {
+      const padded = ' ' + textoNormalizado + ' ';
+      return obtenerVariantesNombreEquipo_(normalizarTextoComparacion_(nombre)).some(function(variant) {
+        return variant.length >= 4 && padded.indexOf(' ' + variant + ' ') !== -1;
+      });
+    }
+    const tituloIdentificaFixture = mencionaEquipoEn(titulo,partido.local)
+      && mencionaEquipoEn(titulo,partido.visitante);
     const frases = [String(resultado.title || '')].concat(contenidoOriginal.split(/(?<=[.!?])\s+|\n+/));
     const evidenciaEmision = frases.filter(function(frase) {
       const normalizada = normalizarTextoComparacion_(frase);
@@ -3866,9 +3875,16 @@ function detectarTransmisionUruguay_(resultados, partido) {
           return variant.length >= 4 && normalizadaConEspacios.indexOf(' ' + variant + ' ') !== -1;
         });
       }
-      // La misma frase de emisión debe identificar a ambos equipos; esto evita
-      // convertir derechos generales de una liga en una señal para un partido.
-      return localizacionUY && hablaDeEmision && nombraProveedor && mencionaEquipo(partido.local) && mencionaEquipo(partido.visitante);
+      // Modo estricto previo: frase con los dos equipos y una atribución UY.
+      if (localizacionUY && hablaDeEmision && nombraProveedor
+          && mencionaEquipo(partido.local) && mencionaEquipo(partido.visitante)) return true;
+      // Modo título + cuerpo: nunca inferir a partir de derechos de torneo,
+      // una mención al proveedor sin atribución ni de un país extranjero.
+      const confirmaUY = /\ben uruguay\b|\bpara uruguay\b|\bterritorio uruguayo\b/.test(normalizada);
+      const derechosGenerales = /\bderechos?\b|\btoda la liga\b|\btodos los partidos\b|\bcompeticion\b|\btorneo\b|\bnations league\b|\bpremier league\b|\bchampions league\b/.test(normalizada);
+      const atribucionConcreta = /\bse transmite\b|\bsera transmitido\b|\bsera televisado\b|\bse televisa\b|\bse podra ver\b|\bdisponible en vivo\b|\bemitira en vivo\b/.test(normalizada);
+      return tituloIdentificaFixture && confirmaUY && atribucionConcreta
+          && nombraProveedor && !derechosGenerales;
     }).join(' ');
     const evidencia = normalizarTextoComparacion_(evidenciaEmision);
     if (!evidencia) return;

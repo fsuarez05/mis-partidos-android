@@ -3,7 +3,7 @@ name: Generar APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev-chatgpt, 'fix/news-peñarol-duplicates-20261122']
+    branches: [main, dev-chatgpt, 'fix/transmission-title-body-evidence-20261122']
 
 jobs:
   build:
