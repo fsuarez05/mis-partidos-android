@@ -38,6 +38,31 @@ final class TeamIdentity {
                 || awayId == null || awayId.isEmpty();
     }
 
+    /**
+     * Safe fallback when a cached provider ID disagrees with a fixture:
+     * require the selected club's complete name and an unambiguous domestic
+     * league. A country alone or a generic international cup is insufficient.
+     */
+    static boolean isUnambiguousDomesticClub(Match match, String favorite, String expectedCountry) {
+        if (match == null || favorite == null || expectedCountry == null) return false;
+        if (!sameName(favorite, match.local()) && !sameName(favorite, match.visitante())) return false;
+        String country=canonical(expectedCountry);
+        String league=canonical(match.competition);
+        String fixtureCountry=canonical(match.country);
+        if (!fixtureCountry.isEmpty() && !fixtureCountry.equals(country)) return false;
+        if ("spain".equals(country))
+            return league.equals("la liga") || league.equals("laliga") || league.startsWith("la liga ");
+        if ("england".equals(country))
+            return league.equals("premier league") || league.startsWith("premier league ");
+        if ("italy".equals(country))
+            return league.equals("serie a") || league.startsWith("serie a ");
+        if ("france".equals(country))
+            return league.equals("ligue 1") || league.startsWith("ligue 1 ");
+        if ("germany".equals(country))
+            return league.equals("bundesliga") || league.startsWith("bundesliga ");
+        return false;
+    }
+
     static boolean sameName(String first, String second) {
         String a = canonical(first), b = canonical(second);
         return !a.isEmpty() && a.equals(b);
