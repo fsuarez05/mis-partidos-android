@@ -31,6 +31,13 @@ final class TeamIdentity {
         return false;
     }
 
+    /** Incomplete provider metadata must not suppress safe name+country fallback. */
+    static boolean needsNameFallback(String selectedId, String homeId, String awayId) {
+        return selectedId == null || selectedId.isEmpty()
+                || homeId == null || homeId.isEmpty()
+                || awayId == null || awayId.isEmpty();
+    }
+
     static boolean sameName(String first, String second) {
         String a = canonical(first), b = canonical(second);
         return !a.isEmpty() && a.equals(b);
