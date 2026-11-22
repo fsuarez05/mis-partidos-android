@@ -447,7 +447,7 @@ class ApiClient {
                 // Si GOAL omite uno de los IDs del fixture, el ID guardado no
                 // permite descartar al favorito. Validamos nombre y ámbito como
                 // respaldo; con ambos IDs presentes nunca ignoramos un conflicto.
-                if(!hasSelectedId || match.homeTeamId.isEmpty() || match.awayTeamId.isEmpty()){
+                if(TeamIdentity.needsNameFallback(selectedId,match.homeTeamId,match.awayTeamId)){
                     boolean nameHome=TeamIdentity.sameName(team,match.team),nameAway=TeamIdentity.sameName(team,match.opponent);
                     if(isNational){
                         boolean international=isInternationalFixture(match);
