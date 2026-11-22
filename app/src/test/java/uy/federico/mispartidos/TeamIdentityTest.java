@@ -8,6 +8,18 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class TeamIdentityTest {
+    @Test public void missingFixtureSideIdsPermitNameFallbackButConflictingCompleteIdsDoNot() {
+        assertTrue(TeamIdentity.needsNameFallback("atletico-id","","getafe-id"));
+        assertTrue(TeamIdentity.needsNameFallback("atletico-id","getafe-id",""));
+        assertTrue(TeamIdentity.needsNameFallback(null,"atletico-id","getafe-id"));
+        assertFalse(TeamIdentity.needsNameFallback("atletico-id","other-id","getafe-id"));
+    }
+
+    @Test public void spanishAndEnglishCountryNamesAreEquivalent() {
+        assertTrue(TeamIdentity.sameName("España","Spain"));
+        assertTrue(TeamIdentity.sameName("Inglaterra","England"));
+    }
+
     @Test public void stableIdMatchesTranslatedAndAlternativeClubNames() {
         Map<String,String> ids=Collections.singletonMap("Atlético de Madrid","team-42");
         assertTrue(TeamIdentity.isFavorite("Atletico Madrid","Deportivo de La Coruña","team-42","team-99",
